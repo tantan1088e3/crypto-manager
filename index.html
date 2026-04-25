@@ -3,179 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Crypto Manager Pro</title>
+    <title>Crypto Manager Full</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root {
-            --tg-theme-bg: #efeff4;
-            --blue: #0088cc;
-            --red: #eb4d4b;
-            --green: #34c759;
-        }
+        :root { --blue: #0088cc; --red: #eb4d4b; --green: #34c759; --bg: #efeff4; }
+        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 0; overflow: hidden; }
 
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
-            background: var(--tg-theme-bg); margin: 0; padding: 0; color: #333; overflow: hidden;
+        /* Toolbar nút bấm trên cùng */
+        .header-tools { 
+            background: white; padding: 8px; border-bottom: 1px solid #ddd;
+            display: flex; gap: 5px; flex-wrap: wrap; justify-content: center;
         }
+        .header-tools button { padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #ccc; background: #f9f9f9; }
 
         /* Vùng cuộn danh sách */
-        .main-scroll {
-            height: calc(100vh - 220px); /* Chừa chỗ cho form ở dưới */
-            overflow-y: auto;
-            padding: 12px;
-            box-sizing: border-box;
-            -webkit-overflow-scrolling: touch;
-        }
+        .main-scroll { height: calc(100vh - 240px); overflow-y: auto; padding: 10px; box-sizing: border-box; }
 
         /* Thẻ Card */
-        .card { 
-            background: white; border-radius: 12px; padding: 12px; 
-            margin-bottom: 12px; border: 1px solid #ddd; 
-            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            transition: opacity 0.3s;
-        }
+        .card { background: white; border-radius: 10px; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; }
+        .card.is-sold { opacity: 0.5; background: #f2f2f2; }
+        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 5px; }
         
-        .card.is-sold { opacity: 0.5; background: #fdfdfd; } /* Làm mờ khi đã chốt */
-
-        .card-header { 
-            display: flex; justify-content: space-between; align-items: flex-start;
-            border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 8px;
-        }
-
-        .coin-info b { font-size: 16px; color: #000; }
-        .tag-buy { color: var(--green); font-size: 12px; font-weight: bold; }
-        .tag-sell { color: var(--red); font-size: 12px; font-weight: bold; }
-
-        /* Nhóm nút Checkbox */
-        .action-group { display: flex; gap: 15px; }
+        .action-group { display: flex; gap: 12px; }
         .check-item { text-align: center; }
-        .check-item label { display: block; font-size: 9px; font-weight: bold; margin-bottom: 4px; }
-        
-        .cb-calc { width: 22px; height: 22px; accent-color: var(--blue); }
-        .cb-sold { width: 22px; height: 22px; accent-color: var(--red); }
+        .check-item label { display: block; font-size: 9px; font-weight: bold; margin-bottom: 2px; }
+        .cb-calc { accent-color: var(--blue); width: 18px; height: 18px; }
+        .cb-sold { accent-color: var(--red); width: 18px; height: 18px; }
 
-        .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-        .grid-item { font-size: 13px; display: flex; flex-direction: column; }
+        .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px; }
         .grid-item span { font-size: 10px; color: #888; text-transform: uppercase; }
 
         /* Form dính đáy */
-        .footer-form {
-            position: fixed; bottom: 0; left: 0; right: 0;
-            background: #fff; border-top: 1px solid #ccc;
-            padding: 12px; box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
-        }
+        .footer-form { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; padding: 10px; }
+        .type-selector { display: flex; gap: 5px; margin-bottom: 8px; }
+        .type-selector button { flex: 1; padding: 6px; border-radius: 5px; border: 1px solid #ddd; font-weight: bold; }
+        .btn-buy.active { background: var(--green); color: white; border: none; }
+        .btn-sell.active { background: var(--red); color: white; border: none; }
 
-        .input-row { display: flex; gap: 8px; margin-bottom: 8px; }
-        input[type="text"], select { 
-            flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px;
-        }
+        .input-row { display: flex; gap: 5px; margin-bottom: 8px; }
+        input, select { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; min-width: 0; }
 
-        .btn-save { 
-            width: 100%; padding: 12px; background: var(--blue); color: white; 
-            border: none; border-radius: 8px; font-weight: bold; font-size: 16px;
-        }
-
-        .status-bar { 
-            margin-top: 10px; font-size: 14px; font-weight: bold; color: var(--red);
-            display: flex; justify-content: space-between;
-        }
-
-        .pos { color: var(--green); }
-        .neg { color: var(--red); }
+        .btn-save { width: 100%; padding: 10px; background: var(--blue); color: white; border: none; border-radius: 6px; font-weight: bold; }
+        .status-bar { margin-top: 8px; font-size: 13px; font-weight: bold; color: var(--red); display: flex; justify-content: space-between; }
     </style>
 </head>
 <body>
 
-    <div class="main-scroll" id="cardContainer">
-        </div>
+    <div class="header-tools">
+        <button>Import Binance CSV</button>
+        <button>Lấy giá từ sàn</button>
+        <div style="font-size: 11px; color: var(--green); font-weight: bold; align-self: center;">+0.01$</div>
+    </div>
+
+    <div class="main-scroll" id="cardContainer"></div>
 
     <div class="footer-form">
-        <div class="input-row">
-            <select id="coinName">
-                <option value="NIGHT">NIGHT</option>
-                <option value="ADA">ADA</option>
-            </select>
-            <input type="text" id="coinPrice" placeholder="Giá">
-            <input type="text" id="coinQty" placeholder="SL">
+        <div class="type-selector">
+            <button class="btn-buy active" id="buyType" onclick="setType('Mua')">MUA</button>
+            <button class="btn-sell" id="sellType" onclick="setType('Bán')">BÁN</button>
         </div>
-        <button class="btn-save" onclick="saveData()">SAVE</button>
-        
+        <div class="input-row">
+            <select id="coinName"><option>NIGHT</option><option>ADA</option></select>
+            <input type="text" id="price" placeholder="Giá">
+            <input type="text" id="qty" placeholder="SL">
+        </div>
+        <button class="btn-save">SAVE DỮ LIỆU</button>
         <div class="status-bar">
-            <span id="totalLabel">Chọn: 0.00 u</span>
-            <span id="totalQty">SL: 0.0000</span>
+            <span id="totalU">Chọn: 0.00 u</span>
+            <span id="totalQ">SL: 0.0000</span>
         </div>
     </div>
 
     <script>
-        // Dữ liệu mẫu
         let data = [
-            {n: "NIGHT", p: 0.03731, q: 401, t: "Mua", l: -2.17, tm: "14:18", isCalc: true, isSold: false},
-            {n: "ADA", p: 0.52, q: 1000, t: "Mua", l: 5.77, tm: "09:30", isCalc: true, isSold: false},
-            {n: "RONIN", p: 0.1001, q: 98, t: "Bán", l: 0.00, tm: "13:39", isCalc: false, isSold: true}
+            {n: "NIGHT", p: 0.03731, q: 401, t: "Mua", l: -2.17, isCalc: true, isSold: false},
+            {n: "ADA", p: 0.52, q: 1000, t: "Mua", l: 5.77, isCalc: true, isSold: false},
+            {n: "RONIN", p: 0.1001, q: 98, t: "Bán", l: 0.0, isCalc: false, isSold: true}
         ];
 
+        function setType(t) {
+            document.getElementById('buyType').classList.toggle('active', t === 'Mua');
+            document.getElementById('sellType').classList.toggle('active', t === 'Bán');
+        }
+
         function render() {
-            const container = document.getElementById('cardContainer');
-            container.innerHTML = data.map((o, i) => `
+            document.getElementById('cardContainer').innerHTML = data.map((o, i) => `
                 <div class="card ${o.isSold ? 'is-sold' : ''}">
                     <div class="card-header">
-                        <div class="coin-info">
-                            <b>${o.n}</b> 
-                            <span class="${o.t === 'Mua' ? 'tag-buy' : 'tag-sell'}">[${o.t}]</span>
-                        </div>
+                        <b>${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">[${o.t}]</small></b>
                         <div class="action-group">
-                            <div class="check-item">
-                                <label style="color:var(--blue)">TÍNH</label>
-                                <input type="checkbox" class="cb-calc" ${o.isCalc ? 'checked' : ''} onchange="toggleCalc(${i})">
-                            </div>
-                            <div class="check-item">
-                                <label style="color:var(--red)">CHỐT</label>
-                                <input type="checkbox" class="cb-sold" ${o.isSold ? 'checked' : ''} onchange="toggleSold(${i})">
-                            </div>
+                            <div class="check-item"><label style="color:var(--blue)">TÍNH</label>
+                                <input type="checkbox" class="cb-calc" ${o.isCalc?'checked':''} onchange="data[${i}].isCalc=!data[${i}].isCalc;updateSum()"></div>
+                            <div class="check-item"><label style="color:var(--red)">CHỐT</label>
+                                <input type="checkbox" class="cb-sold" ${o.isSold?'checked':''} onchange="data[${i}].isSold=!data[${i}].isSold;render()"></div>
                         </div>
                     </div>
                     <div class="card-grid">
                         <div class="grid-item"><span>Giá mua</span>${o.p}</div>
                         <div class="grid-item"><span>Số lượng</span>${o.q}</div>
-                        <div class="grid-item"><span>Lãi/Lỗ</span><b class="${o.l >= 0 ? 'pos' : 'neg'}">${o.l}%</b></div>
-                        <div class="grid-item"><span>Thời gian</span>${o.tm}</div>
+                        <div class="grid-item"><span>Lãi/Lỗ</span><b style="color:${o.l>=0?'green':'red'}">${o.l}%</b></div>
                     </div>
-                </div>
-            `).join('');
-            updateTotal();
+                </div>`).join('');
+            updateSum();
         }
 
-        function toggleCalc(index) {
-            data[index].isCalc = !data[index].isCalc;
-            updateTotal();
+        function updateSum() {
+            let u = 0, q = 0;
+            data.filter(x => x.isCalc).forEach(x => { u += x.p * x.q; q += x.q; });
+            document.getElementById('totalU').innerText = `Chọn: ${u.toFixed(2)} u`;
+            document.getElementById('totalQ').innerText = `SL: ${q.toFixed(4)}`;
         }
 
-        function toggleSold(index) {
-            data[index].isSold = !data[index].isSold;
-            render(); // Render lại để áp dụng hiệu ứng làm mờ (opacity)
-        }
-
-        function updateTotal() {
-            let totalU = 0;
-            let totalQ = 0;
-            data.filter(x => x.isCalc).forEach(x => {
-                totalU += x.p * x.q;
-                totalQ += x.q;
-            });
-            document.getElementById('totalLabel').innerText = `Chọn: ${totalU.toFixed(2)} u`;
-            document.getElementById('totalQty').innerText = `SL: ${totalQ.toFixed(4)}`;
-        }
-
-        function saveData() {
-            // Logic lưu của ông ở đây
-            alert("Đã lưu dữ liệu!");
-        }
-
-        // Khởi tạo Telegram
         const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand(); // Mở rộng hết màn hình
-
+        tg.ready(); tg.expand();
         render();
     </script>
 </body>
