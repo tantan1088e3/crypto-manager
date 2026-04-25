@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crypto Manager Pro</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f0f0; margin: 0; padding: 0; font-size: 12px; }
+        
+        /* Toolbar đầy đủ nút như JavaFX */
+        .toolbar { padding: 8px; background: #f0f0f0; border-bottom: 1px solid #ccc; display: flex; gap: 5px; flex-wrap: wrap; align-items: center; }
+        .toolbar button { padding: 4px 10px; background: #e1e1e1; border: 1px solid #adadad; cursor: pointer; border-radius: 2px; }
+        .toolbar input { padding: 3px; border: 1px solid #ccc; width: 100px; }
+
+        /* Container cho bảng và thẻ */
+        .main-content { padding: 10px; padding-bottom: 150px; } /* Trừa chỗ cho form ở dưới */
+        
+        /* Chế độ Bảng (Máy tính) */
+        .table-view { display: block; background: white; border: 1px solid #bcbcbc; width: 100%; border-collapse: collapse; }
+        .table-view th { background: #e1e1e1; border: 1px solid #bcbcbc; padding: 5px; font-weight: normal; }
+        .table-view td { border: 1px solid #eee; padding: 5px; text-align: center; }
+
+        /* Chế độ Thẻ (Mobile/Telegram) - CUỘN DỌC */
+        .card-view { display: none; }
+
+        @media (max-width: 768px) {
+            .table-view { display: none; } /* Ẩn bảng khi màn hình nhỏ */
+            .card-view { display: block; }
+            .card { 
+                background: white; border: 1px solid #ccc; border-radius: 8px; 
+                padding: 12px; margin-bottom: 10px; position: relative;
+            }
+            .card-header { border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 8px; display: flex; justify-content: space-between; }
+            .card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+            .card-item { font-size: 13px; }
+            .card-item b { color: #666; font-size: 11px; text-transform: uppercase; }
+            .card-check { position: absolute; top: 10px; right: 10px; transform: scale(1.5); }
+        }
+
+        /* Form nhập liệu dính ở dưới (giống JavaFX) */
+        .footer-form { 
+            position: fixed; bottom: 0; left: 0; right: 0; 
+            background: #f0f0f0; border-top: 2px solid #ccc; padding: 10px;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 100;
+        }
+        .form-grid { display: grid; grid-template-columns: 80px 1fr 80px 1fr; gap: 8px; align-items: center; }
+        @media (max-width: 600px) { .form-grid { grid-template-columns: 70px 1fr; } }
+
+        /* Màu sắc lãi lỗ */
+        .mua { color: #27ae60; } .ban { color: #eb4d4b; }
+        .pos { color: #27ae60; font-weight: bold; } .neg { color: #eb4d4b; font-weight: bold; }
+        .sum-red { color: #eb4d4b; font-weight: bold; font-size: 14px; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+    <div class="toolbar">
+        <button>Import Binance CSV</button>
+        <button>Lấy giá từ sàn</button>
+        <input type="text" placeholder="Giá chốt lời...">
+        <span style="color:#27ae60; font-weight:bold">+0.01$</span>
+        <span style="margin-left:auto; color:#f39c12; font-weight:bold">Dự tính: 268.72 $</span>
+    </div>
+
+    <div class="main-content">
+        <table class="table-view">
+            <thead>
+                <tr>
+                    <th>Coin</th><th>Giá</th><th>SL</th><th>Loại</th><th>USDT</th><th>% Lãi</th><th>Còn</th><th>Giờ</th><th>Tính</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+
+        <div id="card-container" class="card-view"></div>
+    </div>
+
+    <div class="footer-form">
+        <div style="font-size: 11px; margin-bottom: 5px; color: #555;">Vốn NIGHT: 301.70 u | Sở hữu: 7,216 NIGHT</div>
+        <div class="form-grid">
+            <label>Tên coin</label>
+            <div style="display:flex; gap:2px"><select style="flex:1"><option>NIGHT</option></select><button>+</button></div>
+            <label>Giá coin</label><input type="text">
+            <label>Số lượng</label><input type="text">
+            <label>Usdt</label><input type="text">
+        </div>
+        <div style="margin-top:8px; display:flex; gap:10px; align-items:center;">
+            <button style="background:#27ae60; color:white; border:none; padding:5px 15px">MUA</button>
+            <button style="padding:5px 15px">BÁN</button>
+            <button style="margin-left:auto; padding:5px 20px; font-weight:bold">SAVE</button>
+        </div>
+        <div class="sum-red" id="sum-text">Chọn: 0.00 u | SL: 0.0000</div>
+    </div>
+
+    <script>
+        const data = [
+            {n: "NIGHT", p: 0.03731, q: 401, t: "Mua", u: 15, cur: 0.0365, r: "Chưa", tm: "14:18", c: true},
+            {n: "ADA", p: 0.52, q: 1000, t: "Mua", u: 520, cur: 0.55, r: "Chưa", tm: "09:30", c: true},
+            {n: "RONIN", p: 0.1001, q: 98, t: "Bán", u: 9.8, cur: 0.1001, r: "Rồi", tm: "13:39", c: false}
+        ];
+
+        function render() {
+            const tBody = document.getElementById('table-body');
+            const cContainer = document.getElementById('card-container');
+            
+            let tHtml = ''; let cHtml = '';
+
+            data.forEach((o, i) => {
+                const pnl = (o.cur - o.p) * o.q;
+                const pnlP = ((o.cur - o.p) / o.p * 100).toFixed(2);
+                const color = pnl >= 0 ? 'pos' : 'neg';
+
+                // Render dòng bảng
+                tHtml += `<tr>
+                    <td><b>${o.n}</b></td><td>${o.p}</td><td>${o.q}</td>
+                    <td class="${o.t==='Mua'?'mua':'ban'}">${o.t}</td><td>${o.u}</td>
+                    <td class="${color}">${pnlP}%</td><td>${o.r}</td><td>${o.tm}</td>
+                    <td><input type="checkbox" class="ck" onchange="calc()" ${o.c?'checked':''} data-pnl="${pnl}" data-q="${o.q}"></td>
+                </tr>`;
+
+                // Render thẻ Mobile
+                cHtml += `<div class="card">
+                    <div class="card-header">
+                        <b style="font-size:16px">${o.n}</b>
+                        <span class="${o.t==='Mua'?'mua':'ban'}">${o.t}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="card-item"><b>Giá:</b> ${o.p}</div>
+                        <div class="card-item"><b>SL:</b> ${o.q}</div>
+                        <div class="card-item"><b>Lãi:</b> <span class="${color}">${pnlP}%</span></div>
+                        <div class="card-item"><b>Giờ:</b> ${o.tm}</div>
+                    </div>
+                    <input type="checkbox" class="ck card-check" onchange="calc()" ${o.c?'checked':''} data-pnl="${pnl}" data-q="${o.q}">
+                </div>`;
+            });
+
+            tBody.innerHTML = tHtml;
+            cContainer.innerHTML = cHtml;
+            calc();
+        }
+
+        function calc() {
+            let p = 0, q = 0;
+            document.querySelectorAll('.ck:checked').forEach(i => {
+                p += parseFloat(i.dataset.pnl);
+                q += parseFloat(i.dataset.q);
+            });
+            document.getElementById('sum-text').innerText = `Chọn: ${p.toFixed(2)} u | SL: ${q.toFixed(4)}`;
+        }
+        render();
+    </script>
+</body>
+</html>
