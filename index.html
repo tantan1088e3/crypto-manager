@@ -89,9 +89,19 @@
 
     <script>
         let data = [
-            {n: "NIGHT", p: 0.03731, q: 401, t: "Mua", l: -2.17, isCalc: true, isSold: false},
-            {n: "ADA", p: 0.52, q: 1000, t: "Mua", l: 5.77, isCalc: true, isSold: false}
-        ];
+        {n: "NIGHT", p: 0.03731, q: 401, t: "Mua", l: -2.17, isCalc: true, isSold: false},
+        {n: "ADA", p: 0.52, q: 1000, t: "Mua", l: 5.77, isCalc: true, isSold: false},
+        {n: "BTC", p: 65000.5, q: 0.01, t: "Mua", l: 1.2, isCalc: false, isSold: false},
+        {n: "ETH", p: 3500.2, q: 0.5, t: "Mua", l: -0.5, isCalc: false, isSold: false},
+        {n: "SOL", p: 145.8, q: 10, t: "Bán", l: 10.5, isCalc: false, isSold: true},
+        {n: "BNB", p: 580.0, q: 2, t: "Mua", l: 3.1, isCalc: false, isSold: false},
+        {n: "DOT", p: 7.2, q: 100, t: "Mua", l: -4.2, isCalc: false, isSold: false},
+        {n: "LINK", p: 15.3, q: 50, t: "Mua", l: 2.8, isCalc: false, isSold: false},
+        {n: "AVAX", p: 35.1, q: 20, t: "Mua", l: -1.5, isCalc: false, isSold: false},
+        {n: "NEAR", p: 6.8, q: 200, t: "Bán", l: 15.0, isCalc: false, isSold: true},
+        {n: "MATIC", p: 0.72, q: 500, t: "Mua", l: -8.3, isCalc: false, isSold: false},
+        {n: "XRP", p: 0.51, q: 1000, t: "Mua", l: 0.0, isCalc: false, isSold: false}
+    ];
 
         function setType(t) {
             document.getElementById('buyType').classList.toggle('active', t === 'Mua');
