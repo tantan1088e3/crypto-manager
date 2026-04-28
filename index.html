@@ -176,40 +176,42 @@
         }
 
         function renderCards() {
-            const container = document.getElementById('cardContainer');
-            container.innerHTML = displayData.map((o, i) => `
-                <div class="card ${o.isSold ? 'is-sold' : ''}">
-                    <div class="card-row-1">
-                        <div class="card-name">${o.n} 
-                            <small style="color:${o.t==='Mua'?'#34c759':'#eb4d4b'}">${o.t.toUpperCase()}</small>
-                        </div>
-                        <div style="display:flex; gap:10px; align-items:center;">
-                            <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
-                            <input type="checkbox" style="accent-color:red" ${o.isSold?'checked':''} onchange="displayData[${i}].isSold=!displayData[${i}].isSold;render()">
-                        </div>
-                    </div>
-                    <div class="card-grid">
-                        <div class="grid-item"><span>GIÁ MUA:</span><br>${o.p}</div>
-                        <div class="grid-item"><span>SỐ LƯỢNG:</span><br>${o.q}</div>
-                        <div class="grid-item" style="text-align:right">
-                            <span>LÃI/LỖ:</span><br>
-                            <b style="color:${parseFloat(o.lPct)>=0?'#34c759':'#eb4d4b'}">${o.lPct}%</b>
-                        </div>
-                    </div>
-                </div>`).join('');
-        }
+    const container = document.getElementById('cardContainer');
+    container.innerHTML = displayData.map((o, i) => `
+        <div class="card ${o.isSold ? 'is-sold' : ''}">
+            <div class="card-row-1">
+                <div class="card-name">${o.n} <small>${o.t}</small></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <button onclick="closeOrder(${o.id})" style="padding:2px 6px; font-size:10px; background:#34c759; color:white; border:none; border-radius:4px;">Chốt ✅</button>
+                    <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
+                </div>
+            </div>
+            </div>`).join('');
+}
 
         function renderTable() {
-            const tbody = document.getElementById('tableBody');
-            tbody.innerHTML = displayData.map((o, i) => `
-                <tr class="${o.isSold ? 'is-sold' : ''}">
-                    <td><b>${o.n}</b><br><small>${o.t}</small></td>
-                    <td>${o.p}</td>
-                    <td>${o.q}</td>
-                    <td style="color:${parseFloat(o.lPct)>=0?'#34c759':'#eb4d4b'}"><b>${o.lPct}%</b></td>
-                    <td><input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()"></td>
-                </tr>`).join('');
-        }
+    const tbody = document.getElementById('tableBody');
+    tbody.innerHTML = displayData.map((o, i) => `
+        <tr class="${o.isSold ? 'is-sold' : ''}">
+            <td><b>${o.n}</b><br><small>ID:${o.id}</small></td>
+            <td>${o.p}</td>
+            <td style="color:${parseFloat(o.lPct)>=0?'green':'red'}"><b>${o.lPct}%</b></td>
+            <td><input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()"></td>
+            <td><button onclick="closeOrder(${o.id})" style="border:none; background:none; font-size:16px;">✅</button></td>
+        </tr>`).join('');
+}
+
+        function closeOrder(orderId) {
+    if(confirm("Ông giáo muốn chốt lệnh ID " + orderId + " này chứ?")) {
+        const payload = {
+            action: "CLOSE_ORDER",
+            id: orderId,
+            time: new Date().toLocaleString('vi-VN')
+        };
+        tg.sendData(JSON.stringify(payload)); // Gửi lệnh về cho Bot Java xử lý SQL
+        tg.close();
+    }
+}
 
         function setView(v) {
             currentView = v;
