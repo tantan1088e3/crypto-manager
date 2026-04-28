@@ -3,38 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Crypto Manager Table</title>
+    <title>Crypto Manager Pro</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         :root { --blue: #0088cc; --red: #eb4d4b; --green: #34c759; --bg: #efeff4; }
         body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 0; overflow: hidden; }
-
-        /* Toolbar */
         .header-tools { background: white; padding: 6px; border-bottom: 1px solid #ddd; display: flex; gap: 4px; justify-content: center; align-items: center; }
         .header-tools button { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; }
         .header-tools button.active { background: var(--blue); color: white; border-color: var(--blue); }
-
-        /* Vùng cuộn - Chỉnh lại chiều cao để chừa chỗ cho footer */
         .main-scroll { height: calc(100vh - 275px); overflow-y: auto; box-sizing: border-box; -webkit-overflow-scrolling: touch; background: white; }
-
-        /* CSS Table View */
+        
+        /* Table View */
         .table-container { width: 100%; display: none; }
         .table-view { width: 100%; border-collapse: collapse; font-size: 11px; }
         .table-view th { background: #f8f9fa; position: sticky; top: 0; padding: 8px 4px; border-bottom: 2px solid #dee2e6; text-align: left; z-index: 10; }
         .table-view td { padding: 8px 4px; border-bottom: 1px solid #eee; vertical-align: middle; }
         .table-view tr.is-sold { background: #f9f9f9; color: #ccc; }
 
-        /* CSS Card View */
+        /* Card View */
         .card-container { padding: 8px; display: block; }
-        .card { background: white; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid #ddd; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+        .card { background: white; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid #ddd; }
         .card.is-sold { opacity: 0.4; background: #f2f2f2; }
-        .card-row-1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .card-row-1 { display: flex; justify-content: space-between; align-items: center; }
         .card-name { font-size: 14px; font-weight: bold; }
-        .card-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 2px; align-items: center; }
+        .card-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 2px; margin-top: 4px; }
         .grid-item { font-size: 11px; }
-        .grid-item span { font-size: 9px; color: #888; margin-right: 3px; }
+        .grid-item span { font-size: 9px; color: #888; }
 
-        /* Form dính đáy */
+        /* Footer Form */
         .footer-form { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; padding: 8px; z-index: 100; }
         .type-selector { display: flex; gap: 4px; margin-bottom: 6px; }
         .type-selector button { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-weight: bold; font-size: 11px; }
@@ -52,22 +48,15 @@
         <button id="btnCard" class="active" onclick="setView('card')">Dạng Card</button>
         <button id="btnTable" onclick="setView('table')">Dạng Bảng</button>
         <div style="flex-grow: 1;"></div>
-        <div id="liveStatus" style="font-size: 10px; color: var(--green); font-weight: bold;">LIVE ON</div>
+        <div id="livePrice" style="font-size: 10px; color: var(--green); font-weight: bold;">Đang tải...</div>
     </div>
 
     <div class="main-scroll">
         <div id="cardContainer" class="card-container"></div>
-        
         <div id="tableContainer" class="table-container">
             <table class="table-view">
                 <thead>
-                    <tr>
-                        <th>ID/Coin</th>
-                        <th>Giá Mua</th>
-                        <th>SL</th>
-                        <th>Lãi% ($)</th>
-                        <th>Tính</th>
-                    </tr>
+                    <tr><th>ID/Coin</th><th>Giá</th><th>SL</th><th>Lãi%</th><th>Tính</th></tr>
                 </thead>
                 <tbody id="tableBody"></tbody>
             </table>
@@ -96,58 +85,67 @@
         const tg = window.Telegram.WebApp;
         tg.ready(); tg.expand();
 
-        let allOrders = []; // Tổng kho dữ liệu từ Bot
-        let displayData = []; // Dữ liệu đang hiển thị (đã lọc theo coin)
+        let allOrders = []; 
+        let displayData = []; 
         let currentView = 'card';
 
-        // 1. Nhận dữ liệu từ URL ?data=
         function initData() {
             const params = new URLSearchParams(window.location.search);
+            const listParam = params.get('list');
             const dataParam = params.get('data');
 
+            // 1. Nạp ComboBox từ 'list'
+            if (listParam) {
+                try {
+                    const decodedList = atob(listParam.replace(/-/g, '+').replace(/_/g, '/'));
+                    const coins = decodedList.split(',');
+                    const select = document.getElementById('coinName');
+                    select.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
+                } catch (e) { console.error("Lỗi list:", e); }
+            }
+
+            // 2. Nạp Bảng/Card từ 'data'
             if (dataParam) {
                 try {
-                    const decoded = atob(dataParam.replace(/-/g, '+').replace(/_/g, '/'));
-                    const rows = decoded.split(';');
-                    
+                    const decodedData = atob(dataParam.replace(/-/g, '+').replace(/_/g, '/'));
+                    const rows = decodedData.split(';');
                     allOrders = rows.map(row => {
                         const p = row.split('|');
-                        return { 
-                            id: p[0], n: p[1], p: p[2], q: p[3], 
-                            lPct: p[4], lUsd: p[5], t: p[6],
-                            isCalc: true, isSold: false 
-                        };
+                        return { id: p[0], n: p[1], p: p[2], q: p[3], lPct: p[4], lUsd: p[5], t: p[6], isCalc: true, isSold: false };
                     });
-
-                    // Đổ ComboBox
-                    const uniqueCoins = [...new Set(allOrders.map(x => x.n))];
-                    const select = document.getElementById('coinName');
-                    select.innerHTML = uniqueCoins.map(c => `<option value="${c}">${c}</option>`).join('');
-
-                    if (uniqueCoins.length > 0) onCoinChange();
-
-                } catch (e) { console.error("Lỗi parse data:", e); }
+                    if (allOrders.length > 0) onCoinChange();
+                } catch (e) { console.error("Lỗi data:", e); }
             }
         }
 
-        // 2. Chuyển đổi View
-        function setView(v) {
-            currentView = v;
-            document.getElementById('btnCard').classList.toggle('active', v === 'card');
-            document.getElementById('btnTable').classList.toggle('active', v === 'table');
-            document.getElementById('cardContainer').style.display = (v === 'card' ? 'block' : 'none');
-            document.getElementById('tableContainer').style.display = (v === 'table' ? 'block' : 'none');
-            render();
-        }
-
-        // 3. Khi đổi Coin ở ComboBox
         function onCoinChange() {
             const coin = document.getElementById('coinName').value;
             displayData = allOrders.filter(x => x.n === coin);
             render();
+            updateLivePrice(coin);
         }
 
-        // 4. Vẽ giao diện
+        function updateLivePrice(symbol) {
+            const statusBox = document.getElementById('livePrice');
+            if (symbol === "NIGHT") {
+                const nightPrice = 0.03731;
+                document.getElementById('price').value = nightPrice;
+                statusBox.innerText = `NIGHT: ${nightPrice}$`;
+                calcUsdt();
+            } else {
+                fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`)
+                    .then(res => res.json())
+                    .then(data => {
+                        if(data.price) {
+                            const p = parseFloat(data.price).toFixed(4);
+                            document.getElementById('price').value = p;
+                            statusBox.innerText = `${symbol}: ${p}$`;
+                            calcUsdt();
+                        }
+                    }).catch(() => statusBox.innerText = "Lỗi giá");
+            }
+        }
+
         function render() {
             if (currentView === 'card') renderCards(); else renderTable();
             updateSum();
@@ -159,14 +157,14 @@
                 <div class="card ${o.isSold ? 'is-sold' : ''}">
                     <div class="card-row-1">
                         <div class="card-name">${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">${o.t}</small></div>
-                        <div style="display:flex; gap:8px">
+                        <div style="display:flex; gap:10px">
                             <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
                             <input type="checkbox" style="accent-color:red" ${o.isSold?'checked':''} onchange="displayData[${i}].isSold=!displayData[${i}].isSold;render()">
                         </div>
                     </div>
                     <div class="card-grid">
-                        <div class="grid-item"><span>GIÁ:</span>${o.p}</div>
-                        <div class="grid-item"><span>SL:</span>${o.q}</div>
+                        <div class="grid-item"><span>GIÁ:</span> ${o.p}</div>
+                        <div class="grid-item"><span>SL:</span> ${o.q}</div>
                         <div class="grid-item"><b style="color:${parseFloat(o.lPct)>=0?'green':'red'}">${o.lPct}%</b></div>
                     </div>
                 </div>`).join('');
@@ -177,29 +175,39 @@
             tbody.innerHTML = displayData.map((o, i) => `
                 <tr class="${o.isSold ? 'is-sold' : ''}">
                     <td><b>${o.n}</b><br><small>ID:${o.id}</small></td>
-                    <td>${o.p}</td>
-                    <td>${o.q}</td>
-                    <td style="color:${parseFloat(o.lPct)>=0?'green':'red'}"><b>${o.lPct}%</b><br><small>(${o.lUsd}$)</small></td>
+                    <td>${o.p}</td><td>${o.q}</td>
+                    <td style="color:${parseFloat(o.lPct)>=0?'green':'red'}"><b>${o.lPct}%</b></td>
                     <td><input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()"></td>
                 </tr>`).join('');
         }
 
-        // 5. Tính toán Form
+        function setView(v) {
+            currentView = v;
+            document.getElementById('btnCard').classList.toggle('active', v === 'card');
+            document.getElementById('btnTable').classList.toggle('active', v === 'table');
+            document.getElementById('cardContainer').style.display = (v === 'card' ? 'block' : 'none');
+            document.getElementById('tableContainer').style.display = (v === 'table' ? 'block' : 'none');
+            render();
+        }
+
         function setType(t) {
             document.getElementById('buyType').classList.toggle('active', t === 'Mua');
             document.getElementById('sellType').classList.toggle('active', t === 'Bán');
         }
+
         function calcUsdt() {
             let p = document.getElementById('price').value, q = document.getElementById('qty').value;
             if(p && q) document.getElementById('usdt').value = (p * q).toFixed(2);
         }
+
         function calcQty() {
             let p = document.getElementById('price').value, u = document.getElementById('usdt').value;
             if(p && u) document.getElementById('qty').value = (u / p).toFixed(4);
         }
+
         function updateSum() {
             let u = 0, q = 0;
-            displayData.filter(x => x.isCalc).forEach(x => { u += x.p * x.q; q += x.q; });
+            displayData.filter(x => x.isCalc).forEach(x => { u += parseFloat(x.p * x.q); q += parseFloat(x.q); });
             document.getElementById('totalU').innerText = `Tổng chọn: ${u.toFixed(2)} u`;
             document.getElementById('totalQ').innerText = `SL: ${q.toFixed(2)}`;
         }
@@ -215,7 +223,15 @@
             tg.close();
         }
 
-        // Khởi động
+        function addCoin() {
+            let c = prompt("Tên Coin (VD: BTC):");
+            if(c) {
+                let s = document.getElementById('coinName'), o = document.createElement('option');
+                o.value = c.toUpperCase(); o.text = c.toUpperCase();
+                s.add(o); s.value = o.value; onCoinChange();
+            }
+        }
+
         initData();
     </script>
 </body>
