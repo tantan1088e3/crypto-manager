@@ -104,7 +104,7 @@
         const listParam = params.get('list');
         const dataParam = params.get('data');
 
-        // Xử lý danh sách Coin (Dùng localStorage vì nhẹ và sync)
+        // Xử lý danh sách Coin
         if (listParam) {
             localStorage.setItem('cache_coin_list', listParam);
             renderCoinSelect(listParam);
@@ -113,72 +113,102 @@
             if (savedList) renderCoinSelect(savedList);
         }
 
-        // Xử lý dữ liệu Lệnh (Dùng CloudStorage bất đồng bộ)
+        // Xử lý dữ liệu Lệnh (Dùng cơ chế Gộp để không mất lệnh cũ)
         tg.CloudStorage.getItem('my_crypto_cache', (err, storedData) => {
-            if (err) console.error("Lỗi truy cập kho Telegram:", err);
+            let finalData = "";
 
-            // ƯU TIÊN 1: Có dữ liệu mới từ URL và nó khác dữ liệu trong kho
-            if (dataParam && dataParam !== storedData) {
-                console.log("Phát hiện dữ liệu mới, đang cập nhật kho...");
-                tg.CloudStorage.setItem('my_crypto_cache', dataParam);
-                parseAndDisplay(dataParam);
-            } 
-            // ƯU TIÊN 2: Không có dữ liệu mới hoặc dữ liệu trùng, lấy từ kho ra dùng
-            else if (storedData) {
-                console.log("Dùng dữ liệu từ kho.");
-                parseAndDisplay(storedData);
+            if (dataParam) {
+                const newDataDecoded = decodeBase64(dataParam);
+                if (storedData) {
+                    const oldDataDecoded = decodeBase64(storedData);
+                    // Gộp 2 nguồn, ưu tiên dataParam mới nhất
+                    finalData = mergeOrders(oldDataDecoded, newDataDecoded);
+                } else {
+                    finalData = newDataDecoded;
+                }
+                // Lưu lại bản đã gộp vào kho mây
+                tg.CloudStorage.setItem('my_crypto_cache', btoa(finalData));
+            } else if (storedData) {
+                finalData = decodeBase64(storedData);
             }
-            // ƯU TIÊN 3: Kho trống và có data ở URL (Lần đầu chạy App)
-            else if (dataParam) {
-                console.log("Nạp dữ liệu lần đầu.");
-                tg.CloudStorage.setItem('my_crypto_cache', dataParam);
-                parseAndDisplay(dataParam);
+
+            if (finalData) {
+                processOrders(finalData);
             }
         });
     }
 
-    // --- 2. XỬ LÝ HIỂN THỊ ---
+    // Hàm giải mã an toàn
+    function decodeBase64(str) {
+        try {
+            return atob(str.replace(/-/g, '+').replace(/_/g, '/'));
+        } catch (e) { return ""; }
+    }
+
+    // Hàm gộp dữ liệu: Nếu trùng ID thì lấy cái mới nhất
+    function mergeOrders(oldStr, newStr) {
+        const map = new Map();
+        const parseToMap = (s) => {
+            s.split(';').filter(x => x).forEach(row => {
+                const id = row.split('|')[0];
+                map.set(id, row);
+            });
+        };
+        parseToMap(oldStr);
+        parseToMap(newStr);
+        return Array.from(map.values()).join(';');
+    }
+
+    // --- 2. XỬ LÝ DỮ LIỆU ---
+    function processOrders(rawStr) {
+        try {
+            const rows = rawStr.split(';');
+            allOrders = rows.map(row => {
+                const p = row.split('|');
+                return { 
+                    id: p[0], 
+                    n: p[1], 
+                    p: parseFloat(p[2]), 
+                    q: parseFloat(p[3]), 
+                    // Nhận diện M/B từ Java hoặc Mua/Bán cũ
+                    t: (p[4] === 'M' || p[4] === 'Mua') ? 'Mua' : 'Bán', 
+                    isSold: p[5] === "0", 
+                    isCalc: p[5] === "1", 
+                    lPct: 0 
+                };
+            });
+            
+            // Sắp xếp ID mới nhất lên đầu
+            allOrders.sort((a, b) => b.id - a.id);
+
+            if (allOrders.length > 0) onCoinChange();
+        } catch (e) { console.error("Lỗi xử lý orders:", e); }
+    }
+
     function renderCoinSelect(encodedList) {
         try {
-            const decodedList = atob(encodedList.replace(/-/g, '+').replace(/_/g, '/'));
+            const decodedList = decodeBase64(encodedList);
             const coins = decodedList.split(',');
             const select = document.getElementById('coinName');
             select.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
         } catch (e) { console.error("Lỗi nạp coin list:", e); }
     }
 
-    function parseAndDisplay(encodedData) {
-        try {
-            const decodedData = atob(encodedData.replace(/-/g, '+').replace(/_/g, '/'));
-            const rows = decodedData.split(';');
-            allOrders = rows.map(row => {
-                const p = row.split('|');
-                return { 
-                    id: p[0], n: p[1], p: parseFloat(p[2]), q: parseFloat(p[3]), 
-                    t: p[4], isSold: p[5] === "0", isCalc: p[5] === "1", lPct: 0 
-                };
-            });
-            
-            // Sau khi nạp xong allOrders mới bắt đầu lọc theo Coin mặc định
-            if (allOrders.length > 0) {
-                onCoinChange(); 
-            }
-        } catch (e) { console.error("Lỗi parse data:", e); }
-    }
-
     function onCoinChange() {
         const select = document.getElementById('coinName');
-        if (!select.value) return; // Tránh lỗi khi danh sách rỗng
+        if (!select.value) return;
         
         const coin = select.value;
+        // Lọc lệnh theo Coin, hiện cả SOLD để ông giáo theo dõi
         displayData = allOrders.filter(x => x.n === coin);
         updateLivePrice(coin); 
     }
 
-    // --- CÁC HÀM CÒN LẠI (GIỮ NGUYÊN NHƯ CŨ) ---
+    // --- 3. BINANCE API & RENDER ---
     function updateLivePrice(symbol) {
         const statusBox = document.getElementById('livePrice');
         statusBox.innerText = "Đang lấy giá...";
+        
         if (symbol === "NIGHT") {
             currentLivePrice = 0.03731;
             processAfterPriceUpdate(symbol, currentLivePrice);
@@ -191,7 +221,7 @@
                         processAfterPriceUpdate(symbol, currentLivePrice);
                     }
                 }).catch(() => {
-                    statusBox.innerText = "Lỗi kết nối API";
+                    statusBox.innerText = "Lỗi API";
                     render();
                 });
         }
@@ -201,9 +231,12 @@
         const statusBox = document.getElementById('livePrice');
         const displayPrice = price < 1 ? price.toFixed(6) : price.toFixed(4);
         statusBox.innerText = `${symbol}: ${displayPrice}$`;
+        
+        // Chỉ cập nhật giá vào ô nhập nếu ô đó đang trống hoặc trùng giá cũ
         document.getElementById('price').value = price;
+
         displayData.forEach(o => {
-            if (o.p > 0) {
+            if (o.p > 0 && !o.isSold) {
                 o.lPct = o.t === 'Mua' ? ((price - o.p) / o.p * 100).toFixed(2) : ((o.p - price) / o.p * 100).toFixed(2);
             }
         });
@@ -227,14 +260,14 @@
         tbody.innerHTML = displayData.map((o, i) => {
             const profitUsd = getProfitUsd(o);
             const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
-            const rowStyle = o.isSold ? 'style="opacity: 0.5; background: #f9f9f9;"' : '';
+            const rowStyle = o.isSold ? 'style="opacity: 0.4; background: #f2f2f2;"' : '';
             return `<tr ${rowStyle}>
                 <td style="font-size:10px"><b>${o.n}</b> ${o.isSold ? '<span style="color:red">[SOLD]</span>' : ''}<br>ID:${o.id}</td>
                 <td style="font-size:10px">${o.p}<br><span style="color:#888">SL:${o.q}</span></td>
-                <td style="color:${color}; font-size:10px"><b>${o.lPct}%</b><br><span>${profitUsd} u</span></td>
+                <td style="color:${o.isSold ? '#999' : color}; font-size:10px"><b>${o.isSold ? '---' : o.lPct + '%'}</b><br><span>${profitUsd} u</span></td>
                 <td><div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
-                    <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
-                    ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="border:none; background:none; font-size:12px; padding:0;">✅</button>` : '🏁'}
+                    <input type="checkbox" ${o.isCalc?'checked':''} onchange="toggleCalc(${i})">
+                    ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="border:none; background:none; font-size:14px; padding:0;">✅</button>` : '🏁'}
                 </div></td></tr>`;
         }).join('');
     }
@@ -246,40 +279,66 @@
             const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
             return `<div class="card ${o.isSold ? 'is-sold' : ''}">
                 <div class="card-row-1">
-                    <div class="card-name">${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">${o.t}</small> <small style="color:#888; font-weight:normal;">#${o.id}</small></div>
+                    <div class="card-name">${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">${o.t}</small> <small style="color:#888; font-weight:normal;">#${o.id}</small> ${o.isSold ? '<b style="color:red"> [SOLD]</b>' : ''}</div>
                     <div style="display:flex; gap:10px; align-items:center;">
-                        ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="padding:2px 6px; font-size:10px; background:#34c759; color:white; border:none; border-radius:4px;">Chốt</button>` : ''}
-                        <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
+                        ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="padding:4px 8px; font-size:10px; background:#34c759; color:white; border:none; border-radius:4px; font-weight:bold;">CHỐT</button>` : ''}
+                        <input type="checkbox" ${o.isCalc?'checked':''} onchange="toggleCalc(${i})">
                     </div>
                 </div>
                 <div class="card-grid">
                     <div class="grid-item"><span>GIÁ:</span><br>${o.p}</div>
                     <div class="grid-item"><span>SL:</span><br>${o.q}</div>
-                    <div class="grid-item" style="text-align:right"><span>LÃI:</span><br><b style="color:${color}">${o.lPct}% (${profitUsd}u)</b></div>
+                    <div class="grid-item" style="text-align:right"><span>LÃI:</span><br><b style="color:${o.isSold ? '#999' : color}">${o.isSold ? 'KẾT THÚC' : o.lPct + '% (' + profitUsd + 'u)'}</b></div>
                 </div></div>`;
         }).join('');
     }
 
-    function closeOrder(orderId) {
-        if(confirm("Ông giáo muốn chốt lệnh ID " + orderId + " này chứ?")) {
-            const payload = { action: "CLOSE_ORDER", id: orderId, time: new Date().toLocaleString('vi-VN') };
-            tg.sendData(JSON.stringify(payload));
-            tg.close();
-        }
+    function toggleCalc(index) {
+        displayData[index].isCalc = !displayData[index].isCalc;
+        updateSum();
     }
 
+    // --- 4. TƯƠNG TÁC BOT ---
+    function closeOrder(orderId) {
+        tg.showConfirm("Ông giáo muốn chốt lệnh ID " + orderId + " này chứ?", (confirmed) => {
+            if (confirmed) {
+                const payload = { action: "CLOSE_ORDER", id: parseInt(orderId), time: new Date().toLocaleString('vi-VN') };
+                tg.sendData(JSON.stringify(payload));
+                tg.close();
+            }
+        });
+    }
+
+    function saveData() {
+        const price = document.getElementById('price').value;
+        const qty = document.getElementById('qty').value;
+        if(!price || !qty) { alert("Nhập giá và SL đã ông giáo!"); return; }
+
+        const payload = {
+            action: "SAVE_ORDER",
+            coin: document.getElementById('coinName').value,
+            type: document.querySelector('.type-selector .active').innerText,
+            price: parseFloat(price),
+            qty: parseFloat(qty),
+            time: new Date().toLocaleString('vi-VN')
+        };
+        tg.sendData(JSON.stringify(payload));
+        tg.close();
+    }
+
+    // --- 5. UI/UX HELPERS ---
     function setView(v) {
         currentView = v;
-        document.getElementById('btnCard').classList.toggle('active', v === 'card');
-        document.getElementById('btnTable').classList.toggle('active', v === 'table');
+        document.getElementById('btnCard').className = v === 'card' ? 'active' : '';
+        document.getElementById('btnTable').className = v === 'table' ? 'active' : '';
         document.getElementById('cardContainer').style.display = (v === 'card' ? 'block' : 'none');
         document.getElementById('tableContainer').style.display = (v === 'table' ? 'block' : 'none');
         render();
     }
 
     function setType(t) {
-        document.getElementById('buyType').classList.toggle('active', t === 'Mua');
-        document.getElementById('sellType').classList.toggle('active', t === 'Bán');
+        document.getElementById('buyType').className = t === 'Mua' ? 'btn-buy active' : 'btn-buy';
+        document.getElementById('sellType').className = t === 'Bán' ? 'btn-sell active' : 'btn-sell';
     }
 
     function calcUsdt() {
@@ -296,24 +355,13 @@
 
     function updateSum() {
         let u = 0, q = 0;
+        // Chỉ tính tổng các lệnh ĐANG CHẠY và ĐƯỢC CHỌN
         displayData.filter(x => x.isCalc && !x.isSold).forEach(x => { 
             u += parseFloat(x.p * x.q); 
             q += parseFloat(x.q); 
         });
         document.getElementById('totalU').innerText = `Tổng chọn: ${u.toFixed(2)} u`;
         document.getElementById('totalQ').innerText = `SL: ${q.toFixed(4)}`;
-    }
-
-    function saveData() {
-        const payload = {
-            coin: document.getElementById('coinName').value,
-            type: document.querySelector('.type-selector .active').innerText,
-            price: document.getElementById('price').value,
-            qty: document.getElementById('qty').value,
-            time: new Date().toLocaleString('vi-VN')
-        };
-        tg.sendData(JSON.stringify(payload));
-        tg.close();
     }
 
     function addCoin() {
@@ -326,7 +374,6 @@
         }
     }
 
-    // --- KÍCH HOẠT ---
     initData();
 </script>
 </body>
