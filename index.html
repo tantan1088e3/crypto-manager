@@ -90,232 +90,244 @@
     </div>
 
     <script>
-        const tg = window.Telegram.WebApp;
-        tg.ready(); tg.expand();
+    const tg = window.Telegram.WebApp;
+    tg.ready(); tg.expand();
 
-        let allOrders = []; 
-        let displayData = []; 
-        let currentView = 'card';
-        let currentLivePrice = 0;
+    let allOrders = []; 
+    let displayData = []; 
+    let currentView = 'card';
+    let currentLivePrice = 0;
 
-        function initData() {
-            const params = new URLSearchParams(window.location.search);
-            const listParam = params.get('list');
-            const dataParam = params.get('data');
+    // --- 1. KHỞI CHẠY HỆ THỐNG ---
+    function initData() {
+        const params = new URLSearchParams(window.location.search);
+        const listParam = params.get('list');
+        const dataParam = params.get('data');
 
-            // 1. Nạp ComboBox từ 'list'
-            if (listParam) {
-                try {
-                    const decodedList = atob(listParam.replace(/-/g, '+').replace(/_/g, '/'));
-                    const coins = decodedList.split(',');
-                    const select = document.getElementById('coinName');
-                    select.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
-                } catch (e) { console.error("Lỗi nạp danh sách coin:", e); }
+        // Xử lý danh sách Coin (Dùng localStorage vì nhẹ và sync)
+        if (listParam) {
+            localStorage.setItem('cache_coin_list', listParam);
+            renderCoinSelect(listParam);
+        } else {
+            const savedList = localStorage.getItem('cache_coin_list');
+            if (savedList) renderCoinSelect(savedList);
+        }
+
+        // Xử lý dữ liệu Lệnh (Dùng CloudStorage bất đồng bộ)
+        tg.CloudStorage.getItem('my_crypto_cache', (err, storedData) => {
+            if (err) console.error("Lỗi truy cập kho Telegram:", err);
+
+            // ƯU TIÊN 1: Có dữ liệu mới từ URL và nó khác dữ liệu trong kho
+            if (dataParam && dataParam !== storedData) {
+                console.log("Phát hiện dữ liệu mới, đang cập nhật kho...");
+                tg.CloudStorage.setItem('my_crypto_cache', dataParam);
+                parseAndDisplay(dataParam);
+            } 
+            // ƯU TIÊN 2: Không có dữ liệu mới hoặc dữ liệu trùng, lấy từ kho ra dùng
+            else if (storedData) {
+                console.log("Dùng dữ liệu từ kho.");
+                parseAndDisplay(storedData);
             }
-
-            // 2. Nạp dữ liệu lệnh từ 'data' (ID|Name|Price|Qty|Type)
-            if (dataParam) {
-                try {
-                    const decodedData = atob(dataParam.replace(/-/g, '+').replace(/_/g, '/'));
-                    const rows = decodedData.split(';');
-                    allOrders = rows.map(row => {
-                        const p = row.split('|');
-                        return { 
-                            id: p[0], n: p[1], p: parseFloat(p[2]), 
-                            q: parseFloat(p[3]), t: p[4], 
-                            isCalc: true, isSold: false, lPct: 0 
-                        };
-                    });
-                    if (allOrders.length > 0) onCoinChange();
-                } catch (e) { console.error("Lỗi nạp dữ liệu lệnh:", e); }
+            // ƯU TIÊN 3: Kho trống và có data ở URL (Lần đầu chạy App)
+            else if (dataParam) {
+                console.log("Nạp dữ liệu lần đầu.");
+                tg.CloudStorage.setItem('my_crypto_cache', dataParam);
+                parseAndDisplay(dataParam);
             }
-        }
-
-        function onCoinChange() {
-            const coin = document.getElementById('coinName').value;
-            displayData = allOrders.filter(x => x.n === coin);
-            updateLivePrice(coin); // Lấy giá xong sẽ tự render nội dung
-        }
-
-        function updateLivePrice(symbol) {
-            const statusBox = document.getElementById('livePrice');
-            statusBox.innerText = "Đang lấy giá...";
-
-            if (symbol === "NIGHT") {
-                currentLivePrice = 0.03731;
-                processAfterPriceUpdate(symbol, currentLivePrice);
-            } else {
-                fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`)
-                    .then(res => res.json())
-                    .then(data => {
-                        if(data.price) {
-                            currentLivePrice = parseFloat(data.price);
-                            processAfterPriceUpdate(symbol, currentLivePrice);
-                        }
-                    }).catch(() => {
-                        statusBox.innerText = "Lỗi kết nối API";
-                        render(); // Vẫn render nhưng không có giá live
-                    });
-            }
-        }
-
-        function processAfterPriceUpdate(symbol, price) {
-            const statusBox = document.getElementById('livePrice');
-            const displayPrice = price < 1 ? price.toFixed(6) : price.toFixed(4);
-            statusBox.innerText = `${symbol}: ${displayPrice}$`;
-            
-            document.getElementById('price').value = price;
-            
-            // Tính toán lại lãi lỗ cho từng lệnh hiển thị
-            displayData.forEach(o => {
-                if (o.p > 0) {
-                    o.lPct = o.t === 'Mua' 
-                        ? ((price - o.p) / o.p * 100).toFixed(2)
-                        : ((o.p - price) / o.p * 100).toFixed(2);
-                }
-            });
-            render();
-            calcUsdt();
-        }
-
-        function render() {
-            if (currentView === 'card') renderCards(); else renderTable();
-            updateSum();
-        }
-
- // Hàm tính toán hiển thị tiền lãi (Usdt)
-function getProfitUsd(o) {
-    if (!currentLivePrice || o.isSold) return "0.00";
-    // Lãi = (Giá hiện tại - Giá mua) * Số lượng (đối với lệnh Mua)
-    const diff = o.t === 'Mua' ? (currentLivePrice - o.p) : (o.p - currentLivePrice);
-    return (diff * o.q).toFixed(2);
-}
-
-function renderTable() {
-    const tbody = document.getElementById('tableBody');
-    tbody.innerHTML = displayData.map((o, i) => {
-        const profitUsd = getProfitUsd(o);
-        const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
-        
-        return `
-        <tr class="${o.isSold ? 'is-sold' : ''}">
-            <td style="font-size:10px"><b>${o.n}</b><br>ID:${o.id}</td>
-            <td style="font-size:10px">${o.p}<br><span style="color:#888">SL:${o.q}</span></td>
-            <td style="color:${color}; font-size:10px">
-                <b>${o.lPct}%</b><br>
-                <span>${profitUsd} u</span>
-            </td>
-            <td>
-                <div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
-                    <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
-                    ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="border:none; background:none; font-size:12px; padding:0;">✅</button>` : ''}
-                </div>
-            </td>
-        </tr>`;
-    }).join('');
-}
-
-function renderCards() {
-    const container = document.getElementById('cardContainer');
-    container.innerHTML = displayData.map((o, i) => {
-        const profitUsd = getProfitUsd(o);
-        const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
-        
-        return `
-        <div class="card ${o.isSold ? 'is-sold' : ''}">
-            <div class="card-row-1">
-                <div class="card-name">${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">${o.t}</small> <small style="color:#888; font-weight:normal;">#${o.id}</small></div>
-                <div style="display:flex; gap:10px; align-items:center;">
-                    ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="padding:2px 6px; font-size:10px; background:#34c759; color:white; border:none; border-radius:4px;">Chốt</button>` : ''}
-                    <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
-                </div>
-            </div>
-            <div class="card-grid">
-                <div class="grid-item"><span>GIÁ:</span><br>${o.p}</div>
-                <div class="grid-item"><span>SL:</span><br>${o.q}</div>
-                <div class="grid-item" style="text-align:right">
-                    <span>LÃI:</span><br>
-                    <b style="color:${color}">${o.lPct}% (${profitUsd}u)</b>
-                </div>
-            </div>
-        </div>`;
-    }).join('');
-}
-
-        function closeOrder(orderId) {
-    if(confirm("Ông giáo muốn chốt lệnh ID " + orderId + " này chứ?")) {
-        const payload = {
-            action: "CLOSE_ORDER",
-            id: orderId,
-            time: new Date().toLocaleString('vi-VN')
-        };
-        tg.sendData(JSON.stringify(payload)); // Gửi lệnh về cho Bot Java xử lý SQL
-        tg.close();
+        });
     }
-}
 
-        function setView(v) {
-            currentView = v;
-            document.getElementById('btnCard').classList.toggle('active', v === 'card');
-            document.getElementById('btnTable').classList.toggle('active', v === 'table');
-            document.getElementById('cardContainer').style.display = (v === 'card' ? 'block' : 'none');
-            document.getElementById('tableContainer').style.display = (v === 'table' ? 'block' : 'none');
-            render();
-        }
+    // --- 2. XỬ LÝ HIỂN THỊ ---
+    function renderCoinSelect(encodedList) {
+        try {
+            const decodedList = atob(encodedList.replace(/-/g, '+').replace(/_/g, '/'));
+            const coins = decodedList.split(',');
+            const select = document.getElementById('coinName');
+            select.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
+        } catch (e) { console.error("Lỗi nạp coin list:", e); }
+    }
 
-        function setType(t) {
-            document.getElementById('buyType').classList.toggle('active', t === 'Mua');
-            document.getElementById('sellType').classList.toggle('active', t === 'Bán');
-        }
-
-        function calcUsdt() {
-            let p = document.getElementById('price').value;
-            let q = document.getElementById('qty').value;
-            if(p && q) document.getElementById('usdt').value = (p * q).toFixed(2);
-        }
-
-        function calcQty() {
-            let p = document.getElementById('price').value;
-            let u = document.getElementById('usdt').value;
-            if(p && u) document.getElementById('qty').value = (u / p).toFixed(4);
-        }
-
-        function updateSum() {
-            let u = 0, q = 0;
-            displayData.filter(x => x.isCalc && !x.isSold).forEach(x => { 
-                u += parseFloat(x.p * x.q); 
-                q += parseFloat(x.q); 
+    function parseAndDisplay(encodedData) {
+        try {
+            const decodedData = atob(encodedData.replace(/-/g, '+').replace(/_/g, '/'));
+            const rows = decodedData.split(';');
+            allOrders = rows.map(row => {
+                const p = row.split('|');
+                return { 
+                    id: p[0], n: p[1], p: parseFloat(p[2]), q: parseFloat(p[3]), 
+                    t: p[4], isSold: p[5] === "0", isCalc: p[5] === "1", lPct: 0 
+                };
             });
-            document.getElementById('totalU').innerText = `Tổng chọn: ${u.toFixed(2)} u`;
-            document.getElementById('totalQ').innerText = `SL: ${q.toFixed(4)}`;
-        }
+            
+            // Sau khi nạp xong allOrders mới bắt đầu lọc theo Coin mặc định
+            if (allOrders.length > 0) {
+                onCoinChange(); 
+            }
+        } catch (e) { console.error("Lỗi parse data:", e); }
+    }
 
-        function saveData() {
-            const payload = {
-                coin: document.getElementById('coinName').value,
-                type: document.querySelector('.type-selector .active').innerText,
-                price: document.getElementById('price').value,
-                qty: document.getElementById('qty').value,
-                time: new Date().toLocaleString('vi-VN')
-            };
+    function onCoinChange() {
+        const select = document.getElementById('coinName');
+        if (!select.value) return; // Tránh lỗi khi danh sách rỗng
+        
+        const coin = select.value;
+        displayData = allOrders.filter(x => x.n === coin);
+        updateLivePrice(coin); 
+    }
+
+    // --- CÁC HÀM CÒN LẠI (GIỮ NGUYÊN NHƯ CŨ) ---
+    function updateLivePrice(symbol) {
+        const statusBox = document.getElementById('livePrice');
+        statusBox.innerText = "Đang lấy giá...";
+        if (symbol === "NIGHT") {
+            currentLivePrice = 0.03731;
+            processAfterPriceUpdate(symbol, currentLivePrice);
+        } else {
+            fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`)
+                .then(res => res.json())
+                .then(data => {
+                    if(data.price) {
+                        currentLivePrice = parseFloat(data.price);
+                        processAfterPriceUpdate(symbol, currentLivePrice);
+                    }
+                }).catch(() => {
+                    statusBox.innerText = "Lỗi kết nối API";
+                    render();
+                });
+        }
+    }
+
+    function processAfterPriceUpdate(symbol, price) {
+        const statusBox = document.getElementById('livePrice');
+        const displayPrice = price < 1 ? price.toFixed(6) : price.toFixed(4);
+        statusBox.innerText = `${symbol}: ${displayPrice}$`;
+        document.getElementById('price').value = price;
+        displayData.forEach(o => {
+            if (o.p > 0) {
+                o.lPct = o.t === 'Mua' ? ((price - o.p) / o.p * 100).toFixed(2) : ((o.p - price) / o.p * 100).toFixed(2);
+            }
+        });
+        render();
+        calcUsdt();
+    }
+
+    function render() {
+        if (currentView === 'card') renderCards(); else renderTable();
+        updateSum();
+    }
+
+    function getProfitUsd(o) {
+        if (!currentLivePrice || o.isSold) return "0.00";
+        const diff = o.t === 'Mua' ? (currentLivePrice - o.p) : (o.p - currentLivePrice);
+        return (diff * o.q).toFixed(2);
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = displayData.map((o, i) => {
+            const profitUsd = getProfitUsd(o);
+            const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
+            const rowStyle = o.isSold ? 'style="opacity: 0.5; background: #f9f9f9;"' : '';
+            return `<tr ${rowStyle}>
+                <td style="font-size:10px"><b>${o.n}</b> ${o.isSold ? '<span style="color:red">[SOLD]</span>' : ''}<br>ID:${o.id}</td>
+                <td style="font-size:10px">${o.p}<br><span style="color:#888">SL:${o.q}</span></td>
+                <td style="color:${color}; font-size:10px"><b>${o.lPct}%</b><br><span>${profitUsd} u</span></td>
+                <td><div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
+                    <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
+                    ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="border:none; background:none; font-size:12px; padding:0;">✅</button>` : '🏁'}
+                </div></td></tr>`;
+        }).join('');
+    }
+
+    function renderCards() {
+        const container = document.getElementById('cardContainer');
+        container.innerHTML = displayData.map((o, i) => {
+            const profitUsd = getProfitUsd(o);
+            const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
+            return `<div class="card ${o.isSold ? 'is-sold' : ''}">
+                <div class="card-row-1">
+                    <div class="card-name">${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">${o.t}</small> <small style="color:#888; font-weight:normal;">#${o.id}</small></div>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="padding:2px 6px; font-size:10px; background:#34c759; color:white; border:none; border-radius:4px;">Chốt</button>` : ''}
+                        <input type="checkbox" ${o.isCalc?'checked':''} onchange="displayData[${i}].isCalc=!displayData[${i}].isCalc;updateSum()">
+                    </div>
+                </div>
+                <div class="card-grid">
+                    <div class="grid-item"><span>GIÁ:</span><br>${o.p}</div>
+                    <div class="grid-item"><span>SL:</span><br>${o.q}</div>
+                    <div class="grid-item" style="text-align:right"><span>LÃI:</span><br><b style="color:${color}">${o.lPct}% (${profitUsd}u)</b></div>
+                </div></div>`;
+        }).join('');
+    }
+
+    function closeOrder(orderId) {
+        if(confirm("Ông giáo muốn chốt lệnh ID " + orderId + " này chứ?")) {
+            const payload = { action: "CLOSE_ORDER", id: orderId, time: new Date().toLocaleString('vi-VN') };
             tg.sendData(JSON.stringify(payload));
             tg.close();
         }
+    }
 
-        function addCoin() {
-            let c = prompt("Tên Coin mới (VD: SOL):");
-            if(c) {
-                let s = document.getElementById('coinName');
-                let o = document.createElement('option');
-                o.value = c.toUpperCase(); 
-                o.text = c.toUpperCase();
-                s.add(o); 
-                s.value = o.value; 
-                onCoinChange();
-            }
+    function setView(v) {
+        currentView = v;
+        document.getElementById('btnCard').classList.toggle('active', v === 'card');
+        document.getElementById('btnTable').classList.toggle('active', v === 'table');
+        document.getElementById('cardContainer').style.display = (v === 'card' ? 'block' : 'none');
+        document.getElementById('tableContainer').style.display = (v === 'table' ? 'block' : 'none');
+        render();
+    }
+
+    function setType(t) {
+        document.getElementById('buyType').classList.toggle('active', t === 'Mua');
+        document.getElementById('sellType').classList.toggle('active', t === 'Bán');
+    }
+
+    function calcUsdt() {
+        let p = document.getElementById('price').value;
+        let q = document.getElementById('qty').value;
+        if(p && q) document.getElementById('usdt').value = (p * q).toFixed(2);
+    }
+
+    function calcQty() {
+        let p = document.getElementById('price').value;
+        let u = document.getElementById('usdt').value;
+        if(p && u) document.getElementById('qty').value = (u / p).toFixed(4);
+    }
+
+    function updateSum() {
+        let u = 0, q = 0;
+        displayData.filter(x => x.isCalc && !x.isSold).forEach(x => { 
+            u += parseFloat(x.p * x.q); 
+            q += parseFloat(x.q); 
+        });
+        document.getElementById('totalU').innerText = `Tổng chọn: ${u.toFixed(2)} u`;
+        document.getElementById('totalQ').innerText = `SL: ${q.toFixed(4)}`;
+    }
+
+    function saveData() {
+        const payload = {
+            coin: document.getElementById('coinName').value,
+            type: document.querySelector('.type-selector .active').innerText,
+            price: document.getElementById('price').value,
+            qty: document.getElementById('qty').value,
+            time: new Date().toLocaleString('vi-VN')
+        };
+        tg.sendData(JSON.stringify(payload));
+        tg.close();
+    }
+
+    function addCoin() {
+        let c = prompt("Tên Coin mới (VD: SOL):");
+        if(c) {
+            let s = document.getElementById('coinName');
+            let o = document.createElement('option');
+            o.value = c.toUpperCase(); o.text = c.toUpperCase();
+            s.add(o); s.value = o.value; onCoinChange();
         }
+    }
 
-        initData();
-    </script>
+    // --- KÍCH HOẠT ---
+    initData();
+</script>
 </body>
 </html>
