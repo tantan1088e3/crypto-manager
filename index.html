@@ -3,170 +3,243 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Crypto Manager Pro Full</title>
+    <title>Crypto Order Manager PRO</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --blue: #0088cc; --red: #eb4d4b; --green: #34c759; --bg: #efeff4; }
-        body { font-family: sans-serif; background: var(--bg); margin: 0; padding: 0; overflow: hidden; }
-
-        /* Toolbar trên cùng */
-        .header-tools { background: white; padding: 8px; border-bottom: 1px solid #ddd; display: flex; gap: 5px; justify-content: center; }
-        .header-tools button { padding: 5px 8px; font-size: 11px; border-radius: 4px; border: 1px solid #ccc; background: #f9f9f9; }
-
-        /* Vùng cuộn danh sách card */
-        .main-scroll { height: calc(100vh - 280px); overflow-y: auto; padding: 10px; box-sizing: border-box; }
-
-        .card { background: white; border-radius: 10px; padding: 10px; margin-bottom: 10px; border: 1px solid #ddd; }
-        .card.is-sold { opacity: 0.5; background: #f2f2f2; }
-        .card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-bottom: 5px; }
+        :root { --blue: #3498db; --green: #2ecc71; --red: #e74c3c; --bg: #f5f6fa; --card-bg: #ffffff; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); margin: 0; padding: 0; user-select: none; }
         
-        .action-group { display: flex; gap: 12px; }
-        .check-item { text-align: center; }
-        .check-item label { display: block; font-size: 9px; font-weight: bold; margin-bottom: 2px; }
-        .cb-calc { accent-color: var(--blue); width: 18px; height: 18px; }
-        .cb-sold { accent-color: var(--red); width: 18px; height: 18px; }
+        /* Header Tools */
+        .header-tools { position: sticky; top: 0; z-index: 999; background: white; padding: 10px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .header-tools button { flex: 1; padding: 8px 5px; border: 1px solid #ddd; border-radius: 6px; background: white; font-size: 11px; font-weight: bold; cursor: pointer; }
+        .header-tools button.active { background: var(--blue); color: white; border-color: var(--blue); }
+        .btn-import { background: #6c5ce7 !important; color: white !important; border-color: #6c5ce7 !important; }
 
-        .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; font-size: 12px; }
-        .grid-item span { font-size: 10px; color: #888; text-transform: uppercase; }
+        /* Container */
+        #mainContent { padding: 10px; padding-bottom: 180px; }
+        .coin-selector { margin-bottom: 15px; }
+        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #ddd; font-size: 16px; background: white; }
 
-        /* Form dính đáy - Bổ sung các nút và input thiếu */
-        .footer-form { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; padding: 10px; z-index: 100; }
+        /* Card View */
+        .card { background: var(--card-bg); border-radius: 12px; padding: 15px; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); border-left: 5px solid #ccc; }
+        .card.buy { border-left-color: var(--green); }
+        .card.sell { border-left-color: var(--red); }
+        .card-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .label { color: #7f8c8d; font-size: 12px; }
+        .value { font-weight: bold; font-size: 14px; }
+        .profit { font-size: 16px; margin-top: 8px; text-align: right; }
+
+        /* Table View */
+        .table-container { background: white; border-radius: 12px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8f9fa; color: #666; }
+
+        /* Footer Form */
+        .footer-form { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 15px; border-top: 1px solid #ddd; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); }
+        .input-group { display: flex; gap: 8px; margin-bottom: 10px; }
+        input { flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .btn-save { width: 100%; padding: 12px; background: var(--green); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; }
         
-        .type-selector { display: flex; gap: 5px; margin-bottom: 8px; }
-        .type-selector button { flex: 1; padding: 8px; border-radius: 5px; border: 1px solid #ddd; font-weight: bold; font-size: 12px; }
-        .btn-buy.active { background: var(--green); color: white; border: none; }
-        .btn-sell.active { background: var(--red); color: white; border: none; }
-
-        .input-group { display: flex; align-items: center; gap: 5px; margin-bottom: 8px; }
-        .btn-add-coin { padding: 8px 12px; background: #eee; border: 1px solid #ccc; border-radius: 5px; font-weight: bold; }
-
-        .input-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-bottom: 8px; }
-        input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box; }
-
-        .btn-save { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; }
-        
-        .status-bar { margin-top: 8px; font-size: 13px; font-weight: bold; color: var(--red); display: flex; justify-content: space-between; }
+        .empty-state { text-align: center; color: #999; margin-top: 50px; font-size: 14px; padding: 20px; }
+        .up { color: var(--green); } .down { color: var(--red); }
     </style>
 </head>
 <body>
 
-    <div class="header-tools">
-        <button onclick="alert('Import Binance CSV')">Import Binance CSV</button>
-        <button onclick="alert('Lấy giá sàn')">Lấy giá từ sàn</button>
-        <div style="font-size: 11px; color: var(--green); font-weight: bold; align-self: center;">+0.01$</div>
+<div class="header-tools">
+    <button id="btnCard" class="active" onclick="setView('card')">Dạng Card</button>
+    <button id="btnTable" onclick="setView('table')">Dạng Bảng</button>
+    <button class="btn-import" onclick="importFromJava()">📥 Import</button>
+    <div id="livePrice" style="min-width: 60px; text-align: right; font-size: 10px; font-weight: bold;">...</div>
+</div>
+
+<div id="mainContent">
+    <div class="coin-selector">
+        <select id="coinName" onchange="onCoinChange()"></select>
     </div>
+    <div id="cardContainer"></div>
+    <div id="tableContainer" style="display:none"></div>
+</div>
 
-    <div class="main-scroll" id="cardContainer">
-        </div>
-
-    <div class="footer-form">
-        <div class="type-selector">
-            <button class="btn-buy active" id="buyType" onclick="setType('Mua')">MUA</button>
-            <button class="btn-sell" id="sellType" onclick="setType('Bán')">BÁN</button>
-        </div>
-
-        <div class="input-group">
-            <select id="coinName" style="flex: 2;">
-                <option value="NIGHT">NIGHT</option>
-                <option value="ADA">ADA</option>
-            </select>
-            <button class="btn-add-coin" onclick="addCoinName()">+</button>
-        </div>
-
-        <div class="input-row">
-            <input type="number" id="price" placeholder="Giá" oninput="calcUsdt()">
-            <input type="number" id="qty" placeholder="SL" oninput="calcUsdt()">
-            <input type="number" id="usdt" placeholder="USDT" oninput="calcQty()">
-        </div>
-
-        <button class="btn-save" onclick="saveData()">SAVE DỮ LIỆU</button>
-        
-        <div class="status-bar">
-            <span id="totalU">Chọn: 0.00 u</span>
-            <span id="totalQ">SL: 0.0000</span>
-        </div>
+<div class="footer-form">
+    <div class="input-group">
+        <input type="number" id="inpPrice" placeholder="Giá">
+        <input type="number" id="inpQty" placeholder="Số lượng">
+        <select id="inpType" style="width: 80px; padding: 8px;">
+            <option value="Mua">Mua</option>
+            <option value="Bán">Bán</option>
+        </select>
     </div>
+    <button class="btn-save" onclick="saveNewOrder()">LƯU LỆNH VÀO DB</button>
+</div>
 
-    <script>
-        let data = [
-        {n: "NIGHT", p: 0.03731, q: 401, t: "Mua", l: -2.17, isCalc: true, isSold: false},
-        {n: "ADA", p: 0.52, q: 1000, t: "Mua", l: 5.77, isCalc: true, isSold: false},
-        {n: "BTC", p: 65000.5, q: 0.01, t: "Mua", l: 1.2, isCalc: false, isSold: false},
-        {n: "ETH", p: 3500.2, q: 0.5, t: "Mua", l: -0.5, isCalc: false, isSold: false},
-        {n: "SOL", p: 145.8, q: 10, t: "Bán", l: 10.5, isCalc: false, isSold: true},
-        {n: "BNB", p: 580.0, q: 2, t: "Mua", l: 3.1, isCalc: false, isSold: false},
-        {n: "DOT", p: 7.2, q: 100, t: "Mua", l: -4.2, isCalc: false, isSold: false},
-        {n: "LINK", p: 15.3, q: 50, t: "Mua", l: 2.8, isCalc: false, isSold: false},
-        {n: "AVAX", p: 35.1, q: 20, t: "Mua", l: -1.5, isCalc: false, isSold: false},
-        {n: "NEAR", p: 6.8, q: 200, t: "Bán", l: 15.0, isCalc: false, isSold: true},
-        {n: "MATIC", p: 0.72, q: 500, t: "Mua", l: -8.3, isCalc: false, isSold: false},
-        {n: "XRP", p: 0.51, q: 1000, t: "Mua", l: 0.0, isCalc: false, isSold: false}
-    ];
+<script>
+    const tg = window.Telegram.WebApp;
+    tg.expand();
 
-        function setType(t) {
-            document.getElementById('buyType').classList.toggle('active', t === 'Mua');
-            document.getElementById('sellType').classList.toggle('active', t === 'Bán');
+    let allOrders = [];
+    let currentView = 'card';
+    let currentPrice = 0;
+
+    // --- 1. KHỞI TẠO (TRỌNG TÂM) ---
+    function init() {
+        const params = new URLSearchParams(window.location.search);
+        const listParam = params.get('list');
+        const dataParam = params.get('data');
+
+        // Nạp danh sách coin
+        if (listParam) {
+            localStorage.setItem('cache_coin_list', listParam);
+            renderCoinSelect(listParam);
+        } else {
+            renderCoinSelect(localStorage.getItem('cache_coin_list') || "");
         }
 
-        // Tự động tính USDT khi nhập Giá và SL
-        function calcUsdt() {
-            let p = document.getElementById('price').value;
-            let q = document.getElementById('qty').value;
-            if(p && q) document.getElementById('usdt').value = (p * q).toFixed(2);
-        }
-
-        // Tự động tính SL khi nhập Giá và USDT
-        function calcQty() {
-            let p = document.getElementById('price').value;
-            let u = document.getElementById('usdt').value;
-            if(p && u) document.getElementById('qty').value = (u / p).toFixed(4);
-        }
-
-        function addCoinName() {
-            let newCoin = prompt("Nhập tên Coin mới:");
-            if(newCoin) {
-                let sel = document.getElementById('coinName');
-                let opt = document.createElement('option');
-                opt.value = newCoin.toUpperCase();
-                opt.innerHTML = newCoin.toUpperCase();
-                sel.appendChild(opt);
-                sel.value = opt.value;
+        // ƯU TIÊN CLOUD STORAGE (Dữ liệu lớn từ Java)
+        tg.CloudStorage.getItem('my_crypto_cache', (err, storedData) => {
+            let finalData = (storedData && storedData.length > 10) ? storedData : dataParam;
+            if (finalData) {
+                processOrders(finalData);
+            } else {
+                document.getElementById('cardContainer').innerHTML = '<div class="empty-state">Chưa có dữ liệu. Hãy bấm nút Import để nạp từ Java!</div>';
             }
-        }
+        });
+    }
 
-        function render() {
-            document.getElementById('cardContainer').innerHTML = data.map((o, i) => `
-                <div class="card ${o.isSold ? 'is-sold' : ''}">
-                    <div class="card-header">
-                        <b>${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">[${o.t}]</small></b>
-                        <div class="action-group">
-                            <div class="check-item"><label style="color:var(--blue)">TÍNH</label>
-                                <input type="checkbox" class="cb-calc" ${o.isCalc?'checked':''} onchange="data[${i}].isCalc=!data[${i}].isCalc;updateSum()"></div>
-                            <div class="check-item"><label style="color:var(--red)">CHỐT</label>
-                                <input type="checkbox" class="cb-sold" ${o.isSold?'checked':''} onchange="data[${i}].isSold=!data[${i}].isSold;render()"></div>
-                        </div>
+    // --- 2. XỬ LÝ IMPORT (CLEAR & OVERWRITE) ---
+    function importFromJava() {
+        let input = window.prompt("Dán mã Base64 từ Java vào đây (Sẽ ghi đè dữ liệu cũ):");
+        if (!input || input.trim().length < 10) return;
+
+        if (confirm("Hệ thống sẽ thay thế toàn bộ dữ liệu hiện tại bằng dữ liệu mới. Tiếp tục?")) {
+            tg.CloudStorage.setItem('my_crypto_cache', input.trim(), (err, success) => {
+                if (success) {
+                    alert("Đã cập nhật dữ liệu thành công!");
+                    window.location.reload();
+                } else {
+                    alert("Lỗi lưu trữ Cloud: " + err);
+                }
+            });
+        }
+    }
+
+    // --- 3. GIẢI MÃ & HIỂN THỊ ---
+    function processOrders(rawBase64) {
+        try {
+            let decoded = "";
+            try {
+                decoded = decodeURIComponent(escape(window.atob(rawBase64)));
+            } catch(e) { decoded = window.atob(rawBase64); }
+
+            allOrders = decoded.split(';').filter(x => x.includes('|')).map(row => {
+                const p = row.split('|');
+                return {
+                    id: p[0], n: p[1], p: parseFloat(p[2])||0, q: parseFloat(p[3])||0,
+                    t: p[4] === 'B' ? 'Bán' : 'Mua',
+                    isCalc: p[5] === '1'
+                };
+            });
+
+            // Tự thêm coin vào select nếu thiếu
+            updateCoinSelectFromData();
+            onCoinChange();
+        } catch (e) { console.error(e); }
+    }
+
+    function renderCoinSelect(listStr) {
+        const select = document.getElementById('coinName');
+        select.innerHTML = "";
+        listStr.split(',').filter(x => x).forEach(c => {
+            let opt = document.createElement('option');
+            opt.value = opt.text = c;
+            select.add(opt);
+        });
+    }
+
+    function updateCoinSelectFromData() {
+        const select = document.getElementById('coinName');
+        const existing = Array.from(select.options).map(o => o.value);
+        const fromData = [...new Set(allOrders.map(o => o.n))];
+        fromData.forEach(c => {
+            if (!existing.includes(c)) {
+                let opt = document.createElement('option');
+                opt.value = opt.text = c;
+                select.add(opt);
+            }
+        });
+    }
+
+    function onCoinChange() {
+        const coin = document.getElementById('coinName').value;
+        const filtered = allOrders.filter(o => o.n === coin).sort((a,b) => b.id - a.id);
+        
+        renderCards(filtered);
+        renderTable(filtered);
+        
+        // Fetch giá (giả lập hoặc gọi API nếu ông giáo có)
+        document.getElementById('livePrice').innerText = "Đang lấy giá...";
+    }
+
+    function renderCards(orders) {
+        let html = "";
+        orders.forEach(o => {
+            html += `
+                <div class="card ${o.t === 'Mua' ? 'buy' : 'sell'}">
+                    <div class="card-row">
+                        <span class="label">ID: ${o.id}</span>
+                        <span class="value" style="color:${o.t==='Mua'?'#2ecc71':'#e74c3c'}">${o.t.toUpperCase()}</span>
                     </div>
-                    <div class="card-grid">
-                        <div class="grid-item"><span>Giá mua</span>${o.p}</div>
-                        <div class="grid-item"><span>Số lượng</span>${o.q}</div>
-                        <div class="grid-item"><span>Lãi/Lỗ</span><b style="color:${o.l>=0?'green':'red'}">${o.l}%</b></div>
+                    <div class="card-row">
+                        <span class="label">Giá:</span>
+                        <span class="value">${o.p.toLocaleString()}</span>
                     </div>
-                </div>`).join('');
-            updateSum();
-        }
+                    <div class="card-row">
+                        <span class="label">Số lượng:</span>
+                        <span class="value">${o.q}</span>
+                    </div>
+                </div>`;
+        });
+        document.getElementById('cardContainer').innerHTML = html || '<div class="empty-state">Coin này chưa có lệnh nào.</div>';
+    }
 
-        function updateSum() {
-            let u = 0, q = 0;
-            data.filter(x => x.isCalc).forEach(x => { u += x.p * x.q; q += x.q; });
-            document.getElementById('totalU').innerText = `Chọn: ${u.toFixed(2)} u`;
-            document.getElementById('totalQ').innerText = `SL: ${q.toFixed(4)}`;
-        }
+    function renderTable(orders) {
+        let html = `<table><thead><tr><th>ID</th><th>Loại</th><th>Giá</th><th>SL</th></tr></thead><tbody>`;
+        orders.forEach(o => {
+            html += `<tr>
+                <td>${o.id}</td>
+                <td class="${o.t==='Mua'?'up':'down'}">${o.t}</td>
+                <td>${o.p.toLocaleString()}</td>
+                <td>${o.q}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+        document.getElementById('tableContainer').innerHTML = html;
+    }
 
-        function saveData() { alert("Đã lưu dữ liệu thành công!"); }
+    function setView(v) {
+        currentView = v;
+        document.getElementById('btnCard').classList.toggle('active', v === 'card');
+        document.getElementById('btnTable').classList.toggle('active', v === 'table');
+        document.getElementById('cardContainer').style.display = v === 'card' ? 'block' : 'none';
+        document.getElementById('tableContainer').style.display = v === 'table' ? 'block' : 'none';
+    }
 
-        const tg = window.Telegram.WebApp;
-        tg.ready(); tg.expand();
-        render();
-    </script>
+    function saveNewOrder() {
+        const coin = document.getElementById('coinName').value;
+        const price = document.getElementById('inpPrice').value;
+        const qty = document.getElementById('inpQty').value;
+        const type = document.getElementById('inpType').value;
+
+        if(!price || !qty) { alert("Nhập đủ giá và lượng đã ông giáo!"); return; }
+
+        const cmd = `BUY|${coin}|${price}|${qty}`; // Ví dụ format gửi về Java
+        tg.sendData(cmd);
+        tg.close();
+    }
+
+    window.onload = init;
+</script>
+
 </body>
 </html>
