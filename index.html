@@ -44,11 +44,13 @@
 <body>
 
     <div class="header-tools">
-        <button id="btnCard" class="active" onclick="setView('card')">Dạng Card</button>
-        <button id="btnTable" onclick="setView('table')">Dạng Bảng</button>
-        <div style="flex-grow: 1; text-align: center; font-size: 11px; font-weight: bold; color: #666;" onclick="alertDebug()">PRO v2</div>
-        <div id="livePrice" style="font-size: 10px; color: var(--green); font-weight: bold;">Đang lấy giá...</div>
-    </div>
+    <button id="btnCard" class="active" onclick="setView('card')">Dạng Card</button>
+    <button id="btnTable" onclick="setView('table')">Dạng Bảng</button>
+    <button onclick="importFromJava()" style="background: #6c5ce7; color: white; border-color: #6c5ce7;">📥 Import</button>
+    
+    <div style="flex-grow: 1; text-align: center; font-size: 11px; font-weight: bold; color: #666;" onclick="alertDebug()">PRO v2</div>
+    <div id="livePrice" style="font-size: 10px; color: var(--green); font-weight: bold;">Giá...</div>
+</div>
 
     <div class="main-scroll">
         <div id="cardContainer" class="card-container">
