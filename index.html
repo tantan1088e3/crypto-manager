@@ -343,6 +343,39 @@
             s.add(o); s.value = o.value; onCoinChange();
         }
     }
+    
+    function importFromJava() {
+    let input = prompt("Ông giáo dán mã Base64 từ file TXT vào đây:");
+    if (!input) return;
+
+    let cleanInput = input.trim(); 
+    try {
+        let decoded = safeDecode(cleanInput);
+        if (!decoded || !decoded.includes('|')) {
+            tg.showAlert("Mã sai định dạng rồi!");
+            return;
+        }
+
+        tg.showConfirm(`Tìm thấy dữ liệu lệnh. Đồng ý gộp vào kho mây không?`, (ok) => {
+            if (ok) {
+                tg.CloudStorage.getItem('my_crypto_cache', (err, storedData) => {
+                    let finalData = decoded; // Ưu tiên dữ liệu mới từ Java
+                    if (storedData) {
+                        finalData = mergeOrders(safeDecode(storedData), decoded);
+                    }
+                    
+                    let toStore = btoa(unescape(encodeURIComponent(finalData)));
+                    tg.CloudStorage.setItem('my_crypto_cache', toStore, (err2, success) => {
+                        if (success) {
+                            tg.showAlert("✅ Đồng bộ thành công!");
+                            window.location.reload();
+                        }
+                    });
+                });
+            }
+        });
+    } catch (e) { alert("Lỗi: " + e.message); }
+}
 
     function alertDebug() { alert(debugInfo); }
 
