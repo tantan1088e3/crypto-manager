@@ -367,37 +367,38 @@
     }
     
     function importFromJava() {
-    let input = prompt("Ông giáo dán mã Base64 từ file TXT vào đây:");
-    if (!input) return;
-
-    let cleanInput = input.trim(); 
-    try {
-        let decoded = safeDecode(cleanInput);
-        if (!decoded || !decoded.includes('|')) {
-            tg.showAlert("Mã sai định dạng rồi!");
-            return;
-        }
-
-        tg.showConfirm(`Tìm thấy dữ liệu lệnh. Đồng ý gộp vào kho mây không?`, (ok) => {
-            if (ok) {
-                tg.CloudStorage.getItem('my_crypto_cache', (err, storedData) => {
-                    let finalData = decoded; // Ưu tiên dữ liệu mới từ Java
-                    if (storedData) {
-                        finalData = mergeOrders(safeDecode(storedData), decoded);
+        let input = window.prompt("Dán mã Base64 từ file TXT vào đây (Sẽ xóa sạch dữ liệu cũ):");
+        if (!input || input.trim() === "") return;
+    
+        try {
+            let cleanInput = input.trim();
+            // Kiểm tra sơ bộ xem có phải Base64 không
+            let testDecoded = "";
+            try {
+                testDecoded = decodeURIComponent(escape(window.atob(cleanInput)));
+            } catch(e) { testDecoded = window.atob(cleanInput); }
+    
+            if (!testDecoded || !testDecoded.includes('|')) {
+                alert("Mã sai định dạng rồi ông giáo!");
+                return;
+            }
+    
+            if (confirm("Hành động này sẽ XÓA TOÀN BỘ dữ liệu cũ trên Web App và thay bằng dữ liệu từ Java. Tiếp tục chứ?")) {
+                
+                // Ép ghi đè thẳng vào CloudStorage
+                tg.CloudStorage.setItem('my_crypto_cache', cleanInput, (err, success) => {
+                    if (success) {
+                        alert("✅ Đã làm mới hoàn toàn dữ liệu! Đang tải lại...");
+                        window.location.reload(); 
+                    } else {
+                        alert("Lỗi khi ghi đè Cloud: " + err);
                     }
-                    
-                    let toStore = btoa(unescape(encodeURIComponent(finalData)));
-                    tg.CloudStorage.setItem('my_crypto_cache', toStore, (err2, success) => {
-                        if (success) {
-                            tg.showAlert("✅ Đồng bộ thành công!");
-                            window.location.reload();
-                        }
-                    });
                 });
             }
-        });
-    } catch (e) { alert("Lỗi: " + e.message); }
-}
+        } catch (e) {
+            alert("Lỗi xử lý mã: " + e.message);
+        }
+    }
 
     function alertDebug() { alert(debugInfo); }
 
