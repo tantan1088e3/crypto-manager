@@ -47,84 +47,166 @@
 
 <script>
     const tg = window.Telegram.WebApp;
-    let allOrders = [];
+    tg.expand();
 
+    let allOrders = []; // Biến toàn cục chứa tất cả lệnh
+
+    // 1. HÀM KHỞI TẠO - CHẠY NGAY KHI MỞ APP
     function init() {
-        // 1. Lấy danh sách coin từ URL
+        console.log("=== BẮT ĐẦU KHỞI TẠO APP ===");
+        
+        // Lấy danh sách Coin từ URL (Java gửi sang)
         const params = new URLSearchParams(window.location.search);
         const list = params.get('list');
-        if (list) localStorage.setItem('coin_list', list);
-        updateSelect();
+        if (list) {
+            localStorage.setItem('coin_list', list);
+            console.log("Đã cập nhật danh sách Coin từ URL:", list);
+        }
 
-        // 2. Lấy dữ liệu từ LocalStorage (Không dùng Cloud nữa vì bị giới hạn 4096)
-        const localData = localStorage.getItem('my_orders_data');
-        if (localData) {
-            decodeAndProcess(localData);
+        // ƯU TIÊN SỐ 1: Đọc dữ liệu từ LocalStorage (Dữ liệu đã Import)
+        const savedData = localStorage.getItem('my_orders_data');
+        
+        if (savedData && savedData.length > 10) {
+            console.log("Tìm thấy dữ liệu trong LocalStorage. Độ dài:", savedData.length);
+            decodeAndProcess(savedData);
         } else {
-            document.getElementById('displayArea').innerHTML = "Bấm Import để nạp dữ liệu!";
+            // Nếu Local rỗng, thử đọc từ URL (Data dự phòng)
+            const dataFromUrl = params.get('data');
+            if (dataFromUrl) {
+                console.log("LocalStorage rỗng, dùng data từ URL");
+                decodeAndProcess(dataFromUrl);
+            } else {
+                console.warn("Không tìm thấy dữ liệu ở bất cứ đâu!");
+                document.getElementById('displayArea').innerHTML = '<div class="empty-state">Chưa có dữ liệu. Ông giáo hãy bấm IMPORT để nạp file từ Java nhé!</div>';
+            }
         }
+        updateSelect();
     }
 
-    function importFromJava() {
-        let input = window.prompt("Dán mã từ file TXT vào đây (Dung lượng lớn thoải mái):");
-        if (!input) return;
-
+    // 2. HÀM GIẢI MÃ VÀ PHÂN TÍCH DỮ LIỆU
+    function decodeAndProcess(base64Str) {
         try {
-            // Lưu thẳng vào LocalStorage của máy
-            localStorage.setItem('my_orders_data', input.trim());
-            alert("✅ Đã nạp thành công dữ liệu khủng!");
-            window.location.reload();
-        } catch (e) {
-            alert("Lỗi bộ nhớ máy: " + e.message);
-        }
-    }
+            console.log("Đang giải mã chuỗi...");
+            let decoded = "";
+            try {
+                decoded = decodeURIComponent(escape(atob(base64Str)));
+            } catch(e) {
+                decoded = atob(base64Str);
+            }
 
-    function decodeAndProcess(base64) {
-        try {
-            let str = "";
-            try { str = decodeURIComponent(escape(atob(base64))); } catch(e) { str = atob(base64); }
-            
-            allOrders = str.split(';').filter(x => x.includes('|')).map(row => {
+            if (!decoded.includes('|')) {
+                throw new Error("Dữ liệu không đúng định dạng (thiếu dấu |)");
+            }
+
+            // Tách chuỗi thành mảng các đối tượng
+            allOrders = decoded.split(';').filter(x => x.includes('|')).map(row => {
                 const p = row.split('|');
-                return { id: p[0], n: p[1], p: p[2], q: p[3], t: p[4] === 'B' ? 'Bán' : 'Mua' };
+                return {
+                    id: p[0],
+                    n: p[1], // Tên Coin
+                    p: parseFloat(p[2]) || 0, // Giá
+                    q: parseFloat(p[3]) || 0, // Số lượng
+                    t: (p[4] === 'B' || p[4] === 'Bán') ? 'Bán' : 'Mua'
+                };
             });
 
-            // Tự cập nhật list coin nếu trong data có coin mới
-            let coins = JSON.parse(JSON.stringify(localStorage.getItem('coin_list') || "")).split(',');
-            allOrders.forEach(o => { if(!coins.includes(o.n)) coins.push(o.n); });
-            localStorage.setItem('coin_list', coins.filter(x=>x).join(','));
+            console.log("Giải mã thành công! Tổng số lệnh:", allOrders.length);
+
+            // Tự động bổ sung Coin vào danh sách nếu trong Data có mà List không có
+            syncCoinList();
             
-            updateSelect();
+            // Vẽ dữ liệu ra màn hình
             render();
-        } catch(e) { console.error(e); }
+
+        } catch (e) {
+            console.error("LỖI GIẢI MÃ:", e);
+            alert("Lỗi xử lý dữ liệu: " + e.message);
+        }
     }
 
+    // 3. HÀM VẼ GIAO DIỆN (RENDER)
+    function render() {
+        const coinSelect = document.getElementById('coinName');
+        const currentCoin = coinSelect.value;
+        const displayArea = document.getElementById('displayArea');
+
+        if (!currentCoin) {
+            displayArea.innerHTML = '<div class="empty-state">Vui lòng chọn một loại Coin.</div>';
+            return;
+        }
+
+        // Lọc lệnh theo Coin đang chọn và sắp xếp ID mới nhất lên đầu
+        const filtered = allOrders.filter(o => o.n === currentCoin).sort((a, b) => b.id - a.id);
+        
+        console.log(`Đang vẽ ${filtered.length} lệnh cho Coin: ${currentCoin}`);
+
+        if (filtered.length === 0) {
+            displayArea.innerHTML = `<div class="empty-state">Không có lệnh nào cho ${currentCoin}.</div>`;
+            return;
+        }
+
+        let html = "";
+        filtered.forEach(o => {
+            html += `
+                <div class="card ${o.t === 'Mua' ? 'buy' : 'sell'}">
+                    <div class="row">
+                        <b style="font-size:14px;">#${o.id}</b>
+                        <span style="font-weight:bold; color:${o.t === 'Mua' ? '#2ecc71' : '#e74c3c'}">${o.t.toUpperCase()}</span>
+                    </div>
+                    <div class="row" style="margin-top:8px;">
+                        <span>Giá: <b>${o.p.toLocaleString()}</b></span>
+                        <span>SL: <b>${o.q}</b></span>
+                    </div>
+                </div>`;
+        });
+        displayArea.innerHTML = html;
+    }
+
+    // 4. HÀM IMPORT (XÓA CŨ ĐỀ MỚI)
+    function importFromJava() {
+        let input = window.prompt("Dán chuỗi Base64 từ Java vào đây:");
+        if (!input || input.trim().length < 10) return;
+
+        try {
+            localStorage.setItem('my_orders_data', input.trim());
+            console.log("Đã lưu dữ liệu mới vào LocalStorage");
+            alert("✅ Import thành công! Hệ thống sẽ tải lại.");
+            window.location.reload(); 
+        } catch (e) {
+            alert("Lỗi lưu trữ: " + e.message);
+        }
+    }
+
+    // --- CÁC HÀM BỔ TRỢ ---
     function updateSelect() {
         const s = document.getElementById('coinName');
         const list = localStorage.getItem('coin_list') || "";
-        s.innerHTML = list.split(',').map(c => `<option value="${c}">${c}</option>`).join('');
+        if (!list && allOrders.length === 0) return;
+        
+        const coins = list.split(',').filter(x => x);
+        s.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
+        
+        // Nếu đã có coin trong select, thử vẽ ngay
+        if (s.value) render();
     }
 
-    function render() {
-        const coin = document.getElementById('coinName').value;
-        const filtered = allOrders.filter(o => o.n === coin).sort((a,b) => b.id - a.id);
-        let html = "";
-        filtered.forEach(o => {
-            html += `<div class="card ${o.t === 'Mua' ? 'buy' : 'sell'}">
-                <div class="row"><b>ID: ${o.id}</b> <span style="color:${o.t==='Mua'?'green':'red'}">${o.t}</span></div>
-                <div class="row"><span>Giá: ${o.p}</span> <span>SL: ${o.q}</span></div>
-            </div>`;
+    function syncCoinList() {
+        let list = localStorage.getItem('coin_list') || "";
+        let coins = list.split(',').filter(x => x);
+        let dataCoins = [...new Set(allOrders.map(o => o.n))];
+        
+        let changed = false;
+        dataCoins.forEach(c => {
+            if (!coins.includes(c)) {
+                coins.push(c);
+                changed = true;
+            }
         });
-        document.getElementById('displayArea').innerHTML = html || "Không có lệnh.";
-    }
 
-    function save() {
-        const coin = document.getElementById('coinName').value;
-        const p = document.getElementById('price').value;
-        const q = document.getElementById('qty').value;
-        const t = document.getElementById('type').value;
-        tg.sendData(`${t === 'Mua' ? 'BUY' : 'SELL'}|${coin}|${p}|${q}`);
-        tg.close();
+        if (changed) {
+            localStorage.setItem('coin_list', coins.join(','));
+            updateSelect();
+        }
     }
 
     window.onload = init;
