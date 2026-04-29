@@ -6,20 +6,25 @@
     <title>My Coin Manager PRO</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        :root { --blue: #3498db; --green: #2ecc71; --red: #e74c3c; --bg: #f5f6fa; --card-bg: #ffffff; }
+        :root { --blue: #3498db; --green: #2ecc71; --red: #e74c3c; --bg: #f5f6fa; }
         body { font-family: -apple-system, sans-serif; background: var(--bg); margin: 0; padding: 0; }
         .header-tools { position: sticky; top: 0; z-index: 999; background: white; padding: 10px; display: flex; gap: 5px; border-bottom: 1px solid #ddd; align-items: center; }
-        .header-tools button { flex: 1; padding: 8px 2px; border: 1px solid #ddd; border-radius: 6px; background: white; font-size: 11px; font-weight: bold; }
+        .header-tools button { flex: 1; padding: 8px 2px; border: 1px solid #ddd; border-radius: 6px; background: white; font-size: 11px; font-weight: bold; cursor: pointer; }
         .header-tools button.active { background: var(--blue); color: white; }
         .btn-import { background: #6c5ce7 !important; color: white !important; }
         #mainContent { padding: 10px; padding-bottom: 160px; }
-        .card { background: white; border-radius: 10px; padding: 12px; margin-bottom: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 4px solid #ccc; }
+        
+        /* Fix Card Layout */
+        .card { background: white; border-radius: 10px; padding: 12px; margin-bottom: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid #ccc; }
         .card.buy { border-left-color: var(--green); }
         .card.sell { border-left-color: var(--red); }
-        .row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 13px; }
-        .footer { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 10px; border-top: 1px solid #ddd; }
-        .btn-save { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 8px; font-weight: bold; }
-        select, input { padding: 8px; border: 1px solid #ddd; border-radius: 6px; }
+        .row { display: flex; justify-content: space-between; margin-bottom: 6px; align-items: center; }
+        .coin-label { font-size: 14px; font-weight: bold; color: #2c3e50; }
+        .type-tag { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+        .val { font-size: 13px; color: #34495e; font-weight: 500; }
+        
+        .footer { position: fixed; bottom: 0; left: 0; right: 0; background: white; padding: 12px; border-top: 1px solid #ddd; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
+        select, input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; margin-bottom: 8px; }
     </style>
 </head>
 <body>
@@ -28,185 +33,101 @@
     <button id="btnCard" class="active" onclick="setView('card')">Dạng Card</button>
     <button id="btnTable" onclick="setView('table')">Dạng Bảng</button>
     <button class="btn-import" onclick="importFromJava()">📥 Import</button>
-    <div id="livePrice" style="font-size: 10px; font-weight: bold; color: var(--green); margin-left: 5px;">...</div>
 </div>
 
 <div id="mainContent">
-    <select id="coinName" style="width:100%; margin-bottom:10px;" onchange="render()"></select>
+    <select id="coinName" onchange="render()"></select>
     <div id="displayArea"></div>
 </div>
 
 <div class="footer">
-    <div style="display:flex; gap:5px; margin-bottom:8px;">
-        <input type="number" id="price" placeholder="Giá" style="flex:2">
-        <input type="number" id="qty" placeholder="SL" style="flex:1">
-        <select id="type"><option>Mua</option><option>Bán</option></select>
+    <div style="display:flex; gap:8px;">
+        <input type="number" id="price" placeholder="Giá">
+        <input type="number" id="qty" placeholder="SL">
+        <select id="type" style="width: 100px;"><option>Mua</option><option>Bán</option></select>
     </div>
-    <button class="btn-save" onclick="save()">LƯU LỆNH VÀO DB</button>
+    <button onclick="save()" style="width:100%; padding:12px; background:var(--blue); color:white; border:none; border-radius:8px; font-weight:bold;">LƯU LỆNH VÀO DB</button>
 </div>
 
 <script>
     const tg = window.Telegram.WebApp;
-    tg.expand();
+    let allOrders = [];
 
-    let allOrders = []; // Biến toàn cục chứa tất cả lệnh
-
-    // 1. HÀM KHỞI TẠO - CHẠY NGAY KHI MỞ APP
     function init() {
-        console.log("=== BẮT ĐẦU KHỞI TẠO APP ===");
-        
-        // Lấy danh sách Coin từ URL (Java gửi sang)
-        const params = new URLSearchParams(window.location.search);
-        const list = params.get('list');
-        if (list) {
-            localStorage.setItem('coin_list', list);
-            console.log("Đã cập nhật danh sách Coin từ URL:", list);
-        }
-
-        // ƯU TIÊN SỐ 1: Đọc dữ liệu từ LocalStorage (Dữ liệu đã Import)
         const savedData = localStorage.getItem('my_orders_data');
-        
-        if (savedData && savedData.length > 10) {
-            console.log("Tìm thấy dữ liệu trong LocalStorage. Độ dài:", savedData.length);
+        if (savedData && savedData.length > 50) { // Check độ dài tối thiểu tránh rác
             decodeAndProcess(savedData);
         } else {
-            // Nếu Local rỗng, thử đọc từ URL (Data dự phòng)
-            const dataFromUrl = params.get('data');
-            if (dataFromUrl) {
-                console.log("LocalStorage rỗng, dùng data từ URL");
-                decodeAndProcess(dataFromUrl);
-            } else {
-                console.warn("Không tìm thấy dữ liệu ở bất cứ đâu!");
-                document.getElementById('displayArea').innerHTML = '<div class="empty-state">Chưa có dữ liệu. Ông giáo hãy bấm IMPORT để nạp file từ Java nhé!</div>';
-            }
+            document.getElementById('displayArea').innerHTML = "Bấm Import để nạp dữ liệu từ Java!";
         }
-        updateSelect();
     }
 
-    // 2. HÀM GIẢI MÃ VÀ PHÂN TÍCH DỮ LIỆU
-    function decodeAndProcess(base64Str) {
+    function importFromJava() {
+        let input = window.prompt("Dán chuỗi Base64 từ file TXT vào đây:");
+        if (!input || input.trim().length < 50) return;
+        localStorage.setItem('my_orders_data', input.trim());
+        alert("✅ Nạp dữ liệu thành công!");
+        window.location.reload();
+    }
+
+    function decodeAndProcess(base64) {
         try {
-            console.log("Đang giải mã chuỗi...");
-            let decoded = "";
-            try {
-                decoded = decodeURIComponent(escape(atob(base64Str)));
-            } catch(e) {
-                decoded = atob(base64Str);
-            }
-
-            if (!decoded.includes('|')) {
-                throw new Error("Dữ liệu không đúng định dạng (thiếu dấu |)");
-            }
-
-            // Tách chuỗi thành mảng các đối tượng
-            allOrders = decoded.split(';').filter(x => x.includes('|')).map(row => {
+            let str = "";
+            try { str = decodeURIComponent(escape(atob(base64))); } catch(e) { str = atob(base64); }
+            
+            // Xử lý tách dòng cực kỹ để không lọt Base64 vào
+            allOrders = str.split(';').filter(x => x.includes('|') && x.split('|').length >= 5).map(row => {
                 const p = row.split('|');
-                return {
-                    id: p[0],
-                    n: p[1], // Tên Coin
-                    p: parseFloat(p[2]) || 0, // Giá
-                    q: parseFloat(p[3]) || 0, // Số lượng
-                    t: (p[4] === 'B' || p[4] === 'Bán') ? 'Bán' : 'Mua'
+                return { 
+                    id: p[0].trim(), 
+                    n: p[1].trim(), 
+                    p: parseFloat(p[2]) || 0, 
+                    q: parseFloat(p[3]) || 0, 
+                    t: (p[4] === 'B' || p[4] === 'Bán') ? 'Bán' : 'Mua' 
                 };
             });
 
-            console.log("Giải mã thành công! Tổng số lệnh:", allOrders.length);
-
-            // Tự động bổ sung Coin vào danh sách nếu trong Data có mà List không có
-            syncCoinList();
+            // Chỉ lấy danh sách Coin từ dữ liệu thực tế (bỏ qua rác Base64)
+            const realCoins = [...new Set(allOrders.map(o => o.n))].filter(c => c && c.length < 15);
+            const s = document.getElementById('coinName');
+            s.innerHTML = realCoins.map(c => `<option value="${c}">${c}</option>`).join('');
             
-            // Vẽ dữ liệu ra màn hình
-            render();
-
-        } catch (e) {
-            console.error("LỖI GIẢI MÃ:", e);
-            alert("Lỗi xử lý dữ liệu: " + e.message);
+            if (realCoins.length > 0) render();
+        } catch(e) { 
+            console.error(e);
+            alert("Lỗi cấu trúc dữ liệu!");
         }
     }
 
-    // 3. HÀM VẼ GIAO DIỆN (RENDER)
     function render() {
-        const coinSelect = document.getElementById('coinName');
-        const currentCoin = coinSelect.value;
-        const displayArea = document.getElementById('displayArea');
-
-        if (!currentCoin) {
-            displayArea.innerHTML = '<div class="empty-state">Vui lòng chọn một loại Coin.</div>';
-            return;
-        }
-
-        // Lọc lệnh theo Coin đang chọn và sắp xếp ID mới nhất lên đầu
-        const filtered = allOrders.filter(o => o.n === currentCoin).sort((a, b) => b.id - a.id);
+        const coin = document.getElementById('coinName').value;
+        const display = document.getElementById('displayArea');
+        const filtered = allOrders.filter(o => o.n === coin).sort((a,b) => b.id - a.id);
         
-        console.log(`Đang vẽ ${filtered.length} lệnh cho Coin: ${currentCoin}`);
-
-        if (filtered.length === 0) {
-            displayArea.innerHTML = `<div class="empty-state">Không có lệnh nào cho ${currentCoin}.</div>`;
-            return;
-        }
-
         let html = "";
         filtered.forEach(o => {
             html += `
-                <div class="card ${o.t === 'Mua' ? 'buy' : 'sell'}">
-                    <div class="row">
-                        <b style="font-size:14px;">#${o.id}</b>
-                        <span style="font-weight:bold; color:${o.t === 'Mua' ? '#2ecc71' : '#e74c3c'}">${o.t.toUpperCase()}</span>
-                    </div>
-                    <div class="row" style="margin-top:8px;">
-                        <span>Giá: <b>${o.p.toLocaleString()}</b></span>
-                        <span>SL: <b>${o.q}</b></span>
-                    </div>
-                </div>`;
+            <div class="card ${o.t === 'Mua' ? 'buy' : 'sell'}">
+                <div class="row">
+                    <span class="coin-label">#${o.id} - ${o.n}</span>
+                    <span class="type-tag" style="background:${o.t==='Mua'?'#eafff2':'#fff1f0'}; color:${o.t==='Mua'?'#2ecc71':'#e74c3c'}">${o.t}</span>
+                </div>
+                <div class="row">
+                    <span class="val">Giá: <b>${o.p.toLocaleString()}</b></span>
+                    <span class="val">SL: <b>${o.q}</b></span>
+                </div>
+            </div>`;
         });
-        displayArea.innerHTML = html;
+        display.innerHTML = html || "Không có dữ liệu.";
     }
 
-    // 4. HÀM IMPORT (XÓA CŨ ĐỀ MỚI)
-    function importFromJava() {
-        let input = window.prompt("Dán chuỗi Base64 từ Java vào đây:");
-        if (!input || input.trim().length < 10) return;
-
-        try {
-            localStorage.setItem('my_orders_data', input.trim());
-            console.log("Đã lưu dữ liệu mới vào LocalStorage");
-            alert("✅ Import thành công! Hệ thống sẽ tải lại.");
-            window.location.reload(); 
-        } catch (e) {
-            alert("Lỗi lưu trữ: " + e.message);
-        }
-    }
-
-    // --- CÁC HÀM BỔ TRỢ ---
-    function updateSelect() {
-        const s = document.getElementById('coinName');
-        const list = localStorage.getItem('coin_list') || "";
-        if (!list && allOrders.length === 0) return;
-        
-        const coins = list.split(',').filter(x => x);
-        s.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
-        
-        // Nếu đã có coin trong select, thử vẽ ngay
-        if (s.value) render();
-    }
-
-    function syncCoinList() {
-        let list = localStorage.getItem('coin_list') || "";
-        let coins = list.split(',').filter(x => x);
-        let dataCoins = [...new Set(allOrders.map(o => o.n))];
-        
-        let changed = false;
-        dataCoins.forEach(c => {
-            if (!coins.includes(c)) {
-                coins.push(c);
-                changed = true;
-            }
-        });
-
-        if (changed) {
-            localStorage.setItem('coin_list', coins.join(','));
-            updateSelect();
-        }
+    function save() {
+        const coin = document.getElementById('coinName').value;
+        const p = document.getElementById('price').value;
+        const q = document.getElementById('qty').value;
+        const t = document.getElementById('type').value;
+        tg.sendData(`${t==='Mua'?'BUY':'SELL'}|${coin}|${p}|${q}`);
+        tg.close();
     }
 
     window.onload = init;
