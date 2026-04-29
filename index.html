@@ -11,40 +11,49 @@
         .header-tools { background: white; padding: 6px; border-bottom: 1px solid #ddd; display: flex; gap: 4px; justify-content: center; align-items: center; }
         .header-tools button { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; }
         .header-tools button.active { background: var(--blue); color: white; border-color: var(--blue); }
-        .main-scroll { height: calc(100vh - 275px); overflow-y: auto; box-sizing: border-box; -webkit-overflow-scrolling: touch; background: white; }
+        .main-scroll { height: calc(100vh - 275px); overflow-y: auto; box-sizing: border-box; -webkit-overflow-scrolling: touch; background: white; min-height: 200px;}
+        
+        /* Table & Card */
         .table-container { width: 100%; display: none; }
         .table-view { width: 100%; border-collapse: collapse; font-size: 11px; }
         .table-view th { background: #f8f9fa; position: sticky; top: 0; padding: 8px 4px; border-bottom: 2px solid #dee2e6; text-align: left; z-index: 10; }
-        .table-view td { padding: 8px 4px; border-bottom: 1px solid #eee; }
+        .table-view td { padding: 8px 4px; border-bottom: 1px solid #eee; vertical-align: middle; }
         .card-container { padding: 8px; display: block; }
-        .card { background: white; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid #ddd; }
-        .card.is-sold { opacity: 0.4; background: #f2f2f2; }
-        .card-row-1 { display: flex; justify-content: space-between; align-items: center; }
-        .card-name { font-size: 14px; font-weight: bold; }
-        .card-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 2px; margin-top: 4px; }
-        .grid-item { font-size: 11px; }
-        .grid-item span { font-size: 9px; color: #888; }
-        .footer-form { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; padding: 8px; z-index: 100; }
+        .card { background: white; border-radius: 8px; padding: 10px; margin-bottom: 8px; border: 1px solid #ddd; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .card.is-sold { opacity: 0.5; background: #f9f9f9; border-style: dashed; }
+        .card-row-1 { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+        .card-name { font-size: 14px; font-weight: bold; color: #333; }
+        .card-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+        .grid-item { font-size: 11px; line-height: 1.4; }
+        .grid-item span { font-size: 9px; color: #888; text-transform: uppercase; }
+
+        /* Footer */
+        .footer-form { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; padding: 8px; z-index: 100; box-shadow: 0 -2px 10px rgba(0,0,0,0.05); }
         .type-selector { display: flex; gap: 4px; margin-bottom: 6px; }
-        .type-selector button { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-weight: bold; font-size: 11px; }
+        .type-selector button { flex: 1; padding: 8px; border-radius: 4px; border: 1px solid #ddd; font-weight: bold; font-size: 11px; transition: 0.2s; }
         .btn-buy.active { background: var(--green); color: white; border: none; }
         .btn-sell.active { background: var(--red); color: white; border: none; }
         .input-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4px; margin-bottom: 6px; }
-        input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
-        .btn-save { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 6px; font-weight: bold; }
-        .status-bar { margin-top: 6px; font-size: 12px; font-weight: bold; color: var(--red); display: flex; justify-content: space-between; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; box-sizing: border-box; outline: none; }
+        .btn-save { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 14px; }
+        .status-bar { margin-top: 8px; font-size: 12px; font-weight: bold; color: #444; display: flex; justify-content: space-between; }
+        
+        .empty-state { text-align: center; padding: 40px 20px; color: #888; font-size: 13px; }
     </style>
 </head>
 <body>
+
     <div class="header-tools">
         <button id="btnCard" class="active" onclick="setView('card')">Dạng Card</button>
         <button id="btnTable" onclick="setView('table')">Dạng Bảng</button>
-        <div style="flex-grow: 1;"></div>
-        <div id="livePrice" style="font-size: 10px; color: var(--green); font-weight: bold;">Đang tải...</div>
+        <div style="flex-grow: 1; text-align: center; font-size: 11px; font-weight: bold; color: #666;" onclick="alertDebug()">PRO v2</div>
+        <div id="livePrice" style="font-size: 10px; color: var(--green); font-weight: bold;">Đang lấy giá...</div>
     </div>
 
     <div class="main-scroll">
-        <div id="cardContainer" class="card-container"></div>
+        <div id="cardContainer" class="card-container">
+            <div class="empty-state">Đang tải dữ liệu, chờ chút nhé ông giáo...</div>
+        </div>
         <div id="tableContainer" class="table-container">
             <table class="table-view">
                 <thead><tr><th>ID/Coin</th><th>Giá/SL</th><th>Lãi %/$</th><th>Tính</th></tr></thead>
@@ -60,15 +69,15 @@
         </div>
         <div style="display:flex; gap:4px; margin-bottom:6px;">
             <select id="coinName" onchange="onCoinChange()"></select>
-            <button style="width:40px; border-radius:4px; border:1px solid #ccc;" onclick="addCoin()">+</button>
+            <button style="width:45px; border-radius:6px; border:1px solid #ccc; background:#eee;" onclick="addCoin()">+</button>
         </div>
         <div class="input-row">
-            <input type="number" id="price" placeholder="Giá" oninput="calcUsdt()">
-            <input type="number" id="qty" placeholder="SL" oninput="calcUsdt()">
-            <input type="number" id="usdt" placeholder="USDT" oninput="calcQty()">
+            <input type="number" id="price" placeholder="Giá" oninput="calcUsdt()" step="any">
+            <input type="number" id="qty" placeholder="SL" oninput="calcUsdt()" step="any">
+            <input type="number" id="usdt" placeholder="USDT" oninput="calcQty()" step="any">
         </div>
-        <button class="btn-save" onclick="saveData()">SAVE LỆNH VÀO DB</button>
-        <div class="status-bar"><span id="totalU">Tổng: 0.00 u</span><span id="totalQ">SL: 0.00</span></div>
+        <button class="btn-save" onclick="saveData()">LƯU LỆNH VÀO DB</button>
+        <div class="status-bar"><span id="totalU">Tổng chọn: 0.00 u</span><span id="totalQ">SL: 0.00</span></div>
     </div>
 
 <script>
@@ -79,12 +88,31 @@
     let displayData = []; 
     let currentView = 'card';
     let currentLivePrice = 0;
+    let debugInfo = "Chưa có log";
 
+    // --- GIẢI MÃ BASE64 AN TOÀN ---
+    function safeDecode(str) {
+        if (!str) return "";
+        try {
+            // Thay thế các ký tự Base64Url sang Base64 chuẩn
+            let base64 = str.replace(/-/g, '+').replace(/_/g, '/');
+            // Thêm padding nếu thiếu
+            while (base64.length % 4) { base64 += '='; }
+            return decodeURIComponent(escape(atob(base64)));
+        } catch (e) {
+            debugInfo = "Lỗi Decode: " + e.message;
+            console.error("Base64 Decode Error:", e);
+            return "";
+        }
+    }
+
+    // --- KHỞI TẠO ---
     function initData() {
         const params = new URLSearchParams(window.location.search);
         const listParam = params.get('list');
         const dataParam = params.get('data');
 
+        // 1. Nạp danh sách Coin
         if (listParam) {
             localStorage.setItem('cache_coin_list', listParam);
             renderCoinSelect(listParam);
@@ -93,31 +121,43 @@
             if (savedList) renderCoinSelect(savedList);
         }
 
+        // 2. Nạp dữ liệu Lệnh
         tg.CloudStorage.getItem('my_crypto_cache', (err, storedData) => {
             let finalData = "";
-            if (dataParam) {
-                const newData = decodeBase64(dataParam);
+            const newData = safeDecode(dataParam);
+
+            if (newData) {
                 if (storedData) {
-                    finalData = mergeOrders(decodeBase64(storedData), newData);
+                    const oldData = safeDecode(storedData);
+                    finalData = mergeOrders(oldData, newData);
                 } else {
                     finalData = newData;
                 }
-                tg.CloudStorage.setItem('my_crypto_cache', btoa(finalData));
+                // Lưu lại bản đã gộp
+                tg.CloudStorage.setItem('my_crypto_cache', btoa(unescape(encodeURIComponent(finalData))));
             } else if (storedData) {
-                finalData = decodeBase64(storedData);
+                finalData = safeDecode(storedData);
             }
-            if (finalData) processOrders(finalData);
-        });
-    }
 
-    function decodeBase64(str) {
-        try { return atob(str.replace(/-/g, '+').replace(/_/g, '/')); } catch (e) { return ""; }
+            if (finalData) {
+                processOrders(finalData);
+            } else {
+                document.getElementById('cardContainer').innerHTML = '<div class="empty-state">Không có dữ liệu lệnh.<br>Ông giáo hãy thêm lệnh mới nhé!</div>';
+            }
+        });
     }
 
     function mergeOrders(oldStr, newStr) {
         const map = new Map();
-        const parse = (s) => s.split(';').filter(x => x).forEach(r => { const id = r.split('|')[0]; map.set(id, r); });
-        parse(oldStr); parse(newStr);
+        const parse = (s) => {
+            if(!s) return;
+            s.split(';').filter(x => x).forEach(row => {
+                const id = row.split('|')[0];
+                if(id) map.set(id, row);
+            });
+        };
+        parse(oldStr);
+        parse(newStr);
         return Array.from(map.values()).join(';');
     }
 
@@ -126,35 +166,186 @@
             allOrders = rawStr.split(';').filter(x => x).map(row => {
                 const p = row.split('|');
                 return { 
-                    id: p[0], n: p[1], p: parseFloat(p[2]), q: parseFloat(p[3]), 
+                    id: p[0], n: p[1], p: parseFloat(p[2])||0, q: parseFloat(p[3])||0, 
                     t: (p[4] === 'M' || p[4] === 'Mua') ? 'Mua' : 'Bán', 
                     isSold: p[5] === "0", isCalc: p[5] === "1", lPct: 0 
                 };
             });
             allOrders.sort((a, b) => b.id - a.id);
-            if (allOrders.length > 0) onCoinChange();
-        } catch (e) { console.error(e); }
+            
+            // Ép chọn Coin đầu tiên nếu có dữ liệu
+            const select = document.getElementById('coinName');
+            if (!select.value && allOrders.length > 0) {
+                select.value = allOrders[0].n;
+            }
+            onCoinChange();
+        } catch (e) { debugInfo = "Lỗi Process: " + e.message; }
     }
 
-    function renderCoinSelect(encodedList) {
+    function renderCoinSelect(encoded) {
         try {
-            const coins = decodeBase64(encodedList).split(',');
-            document.getElementById('coinName').innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
+            const coins = safeDecode(encoded).split(',').filter(x => x);
+            const select = document.getElementById('coinName');
+            select.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
+            if(allOrders.length === 0) onCoinChange();
         } catch (e) {}
     }
 
     function onCoinChange() {
         const coin = document.getElementById('coinName').value;
-        if (!coin) return;
+        if (!coin) {
+            document.getElementById('cardContainer').innerHTML = '<div class="empty-state">Chọn một loại Coin để xem lệnh.</div>';
+            return;
+        }
         displayData = allOrders.filter(x => x.n === coin);
         updateLivePrice(coin); 
     }
 
     function updateLivePrice(symbol) {
         const box = document.getElementById('livePrice');
-        box.innerText = "Loading...";
+        box.innerText = "Lấy giá...";
+        
         if (symbol === "NIGHT") {
             currentLivePrice = 0.03731;
             processAfterPriceUpdate(symbol, currentLivePrice);
         } else {
-            fetch(`https://api
+            fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`)
+                .then(res => res.json())
+                .then(data => {
+                    if(data.price) {
+                        currentLivePrice = parseFloat(data.price);
+                        processAfterPriceUpdate(symbol, currentLivePrice);
+                    }
+                }).catch(() => { box.innerText = "Lỗi API"; render(); });
+        }
+    }
+
+    function processAfterPriceUpdate(symbol, price) {
+        document.getElementById('livePrice').innerText = `${symbol}: ${price < 1 ? price.toFixed(6) : price.toFixed(4)}$`;
+        document.getElementById('price').value = price;
+        displayData.forEach(o => {
+            if (o.p > 0 && !o.isSold) {
+                o.lPct = o.t === 'Mua' ? ((price - o.p) / o.p * 100).toFixed(2) : ((o.p - price) / o.p * 100).toFixed(2);
+            }
+        });
+        render();
+        calcUsdt();
+    }
+
+    function render() {
+        if (currentView === 'card') renderCards(); else renderTable();
+        updateSum();
+    }
+
+    function renderCards() {
+        const container = document.getElementById('cardContainer');
+        if(displayData.length === 0) {
+            container.innerHTML = '<div class="empty-state">Không có lệnh nào cho Coin này.</div>';
+            return;
+        }
+        container.innerHTML = displayData.map((o, i) => {
+            const pUsd = o.isSold ? 0 : (o.t === 'Mua' ? (currentLivePrice - o.p) : (o.p - currentLivePrice)) * o.q;
+            const color = parseFloat(o.lPct) >= 0 ? 'var(--green)' : 'var(--red)';
+            return `<div class="card ${o.isSold ? 'is-sold' : ''}">
+                <div class="card-row-1">
+                    <div class="card-name">${o.n} <span style="color:${o.t==='Mua'?'green':'red'}; font-size:10px;">${o.t.toUpperCase()}</span> <small style="font-weight:normal; color:#999">#${o.id}</small></div>
+                    <div style="display:flex; gap:12px; align-items:center;">
+                        ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="background:var(--green); color:white; border:none; padding:4px 8px; border-radius:4px; font-size:10px; font-weight:bold;">CHỐT</button>` : '<b style="color:red; font-size:10px">ĐÃ BÁN</b>'}
+                        <input type="checkbox" style="width:18px; height:18px;" ${o.isCalc?'checked':''} onchange="toggleCalc(${i})">
+                    </div>
+                </div>
+                <div class="card-grid">
+                    <div class="grid-item"><span>Giá Vào</span><br><b>${o.p}</b></div>
+                    <div class="grid-item"><span>Số Lượng</span><br><b>${o.q}</b></div>
+                    <div class="grid-item" style="text-align:right"><span>Lãi/Lỗ</span><br><b style="color:${o.isSold ? '#999' : color}">${o.isSold ? '---' : o.lPct + '% (' + pUsd.toFixed(2) + 'u)'}</b></div>
+                </div></div>`;
+        }).join('');
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = displayData.map((o, i) => {
+            const pUsd = o.isSold ? 0 : (o.t === 'Mua' ? (currentLivePrice - o.p) : (o.p - currentLivePrice)) * o.q;
+            const color = parseFloat(o.lPct) >= 0 ? 'var(--green)' : 'var(--red)';
+            return `<tr style="opacity:${o.isSold?0.5:1}">
+                <td><b>${o.n}</b><br><small>#${o.id}</small></td>
+                <td>${o.p}<br><small>SL:${o.q}</small></td>
+                <td style="color:${o.isSold?'#999':color}"><b>${o.isSold?'SOLD':o.lPct+'%'}</b><br>${pUsd.toFixed(2)}u</td>
+                <td><input type="checkbox" ${o.isCalc?'checked':''} onchange="toggleCalc(${i})"></td></tr>`;
+        }).join('');
+    }
+
+    function toggleCalc(index) { displayData[index].isCalc = !displayData[index].isCalc; updateSum(); }
+
+    function closeOrder(id) {
+        tg.showConfirm("Xác nhận chốt lệnh #" + id + "?", (c) => {
+            if (c) { 
+                tg.sendData(JSON.stringify({action:"CLOSE_ORDER", id:parseInt(id), time: new Date().toLocaleString()})); 
+                tg.close(); 
+            }
+        });
+    }
+
+    function saveData() {
+        const p = document.getElementById('price').value;
+        const q = document.getElementById('qty').value;
+        if(!p || !q) { tg.showAlert("Nhập đủ giá và SL nhé!"); return; }
+        tg.sendData(JSON.stringify({
+            action:"SAVE_ORDER", 
+            coin: document.getElementById('coinName').value,
+            type: document.querySelector('.type-selector .active').innerText,
+            price: parseFloat(p), qty: parseFloat(q)
+        }));
+        tg.close();
+    }
+
+    function setView(v) {
+        currentView = v;
+        document.getElementById('btnCard').className = v === 'card' ? 'active' : '';
+        document.getElementById('btnTable').className = v === 'table' ? 'active' : '';
+        document.getElementById('cardContainer').style.display = (v === 'card' ? 'block' : 'none');
+        document.getElementById('tableContainer').style.display = (v === 'table' ? 'block' : 'none');
+        render();
+    }
+
+    function setType(t) {
+        document.getElementById('buyType').className = t === 'Mua' ? 'btn-buy active' : 'btn-buy';
+        document.getElementById('sellType').className = t === 'Bán' ? 'btn-sell active' : 'btn-sell';
+    }
+
+    function calcUsdt() {
+        const p = document.getElementById('price').value;
+        const q = document.getElementById('qty').value;
+        if(p && q) document.getElementById('usdt').value = (p * q).toFixed(2);
+    }
+
+    function calcQty() {
+        const p = document.getElementById('price').value;
+        const u = document.getElementById('usdt').value;
+        if(p && u) document.getElementById('qty').value = (u / p).toFixed(4);
+    }
+
+    function updateSum() {
+        let u = 0, q = 0;
+        displayData.filter(x => x.isCalc && !x.isSold).forEach(x => { u += (x.p * x.q); q += x.q; });
+        document.getElementById('totalU').innerText = `Tổng: ${u.toFixed(2)} u`;
+        document.getElementById('totalQ').innerText = `SL: ${q.toFixed(4)}`;
+    }
+
+    function addCoin() {
+        let c = prompt("Nhập mã Coin (VD: BTC, SOL):");
+        if(c) {
+            let s = document.getElementById('coinName');
+            let o = document.createElement('option');
+            o.value = c.toUpperCase().trim(); o.text = o.value;
+            s.add(o); s.value = o.value; onCoinChange();
+        }
+    }
+
+    function alertDebug() { alert(debugInfo); }
+
+    // Chạy khởi tạo
+    initData();
+</script>
+</body>
+</html>
