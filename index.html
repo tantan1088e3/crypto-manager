@@ -12,15 +12,10 @@
         .header-tools button { padding: 4px 8px; font-size: 10px; border-radius: 4px; border: 1px solid #ccc; background: #f9f9f9; font-weight: bold; }
         .header-tools button.active { background: var(--blue); color: white; border-color: var(--blue); }
         .main-scroll { height: calc(100vh - 275px); overflow-y: auto; box-sizing: border-box; -webkit-overflow-scrolling: touch; background: white; }
-        
-        /* Table View */
         .table-container { width: 100%; display: none; }
         .table-view { width: 100%; border-collapse: collapse; font-size: 11px; }
         .table-view th { background: #f8f9fa; position: sticky; top: 0; padding: 8px 4px; border-bottom: 2px solid #dee2e6; text-align: left; z-index: 10; }
-        .table-view td { padding: 8px 4px; border-bottom: 1px solid #eee; vertical-align: middle; }
-        .table-view tr.is-sold { background: #f9f9f9; color: #ccc; }
-
-        /* Card View */
+        .table-view td { padding: 8px 4px; border-bottom: 1px solid #eee; }
         .card-container { padding: 8px; display: block; }
         .card { background: white; border-radius: 8px; padding: 6px 10px; margin-bottom: 6px; border: 1px solid #ddd; }
         .card.is-sold { opacity: 0.4; background: #f2f2f2; }
@@ -29,8 +24,6 @@
         .card-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 2px; margin-top: 4px; }
         .grid-item { font-size: 11px; }
         .grid-item span { font-size: 9px; color: #888; }
-
-        /* Footer Form */
         .footer-form { position: fixed; bottom: 0; left: 0; right: 0; background: #fff; border-top: 1px solid #ccc; padding: 8px; z-index: 100; }
         .type-selector { display: flex; gap: 4px; margin-bottom: 6px; }
         .type-selector button { flex: 1; padding: 6px; border-radius: 4px; border: 1px solid #ddd; font-weight: bold; font-size: 11px; }
@@ -40,18 +33,9 @@
         input, select { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; box-sizing: border-box; }
         .btn-save { width: 100%; padding: 12px; background: var(--blue); color: white; border: none; border-radius: 6px; font-weight: bold; }
         .status-bar { margin-top: 6px; font-size: 12px; font-weight: bold; color: var(--red); display: flex; justify-content: space-between; }
-
-        .table-view th:nth-child(1) { width: 25%; }
-        .table-view th:nth-child(2) { width: 30%; }
-        .table-view th:nth-child(3) { width: 30%; }
-        .table-view th:nth-child(4) { width: 15%; }
-
-        
-        
     </style>
 </head>
 <body>
-
     <div class="header-tools">
         <button id="btnCard" class="active" onclick="setView('card')">Dạng Card</button>
         <button id="btnTable" onclick="setView('table')">Dạng Bảng</button>
@@ -63,9 +47,7 @@
         <div id="cardContainer" class="card-container"></div>
         <div id="tableContainer" class="table-container">
             <table class="table-view">
-                <thead>
-                    <tr><th>ID/Coin</th><th>Giá/SL</th><th>Lãi %/$</th><th>Tính</th></tr>
-                </thead>
+                <thead><tr><th>ID/Coin</th><th>Giá/SL</th><th>Lãi %/$</th><th>Tính</th></tr></thead>
                 <tbody id="tableBody"></tbody>
             </table>
         </div>
@@ -86,10 +68,10 @@
             <input type="number" id="usdt" placeholder="USDT" oninput="calcQty()">
         </div>
         <button class="btn-save" onclick="saveData()">SAVE LỆNH VÀO DB</button>
-        <div class="status-bar"><span id="totalU">Tổng chọn: 0.00 u</span><span id="totalQ">SL: 0.00</span></div>
+        <div class="status-bar"><span id="totalU">Tổng: 0.00 u</span><span id="totalQ">SL: 0.00</span></div>
     </div>
 
-    <script>
+<script>
     const tg = window.Telegram.WebApp;
     tg.ready(); tg.expand();
 
@@ -98,13 +80,11 @@
     let currentView = 'card';
     let currentLivePrice = 0;
 
-    // --- 1. KHỞI CHẠY HỆ THỐNG ---
     function initData() {
         const params = new URLSearchParams(window.location.search);
         const listParam = params.get('list');
         const dataParam = params.get('data');
 
-        // Xử lý danh sách Coin
         if (listParam) {
             localStorage.setItem('cache_coin_list', listParam);
             renderCoinSelect(listParam);
@@ -113,268 +93,68 @@
             if (savedList) renderCoinSelect(savedList);
         }
 
-        // Xử lý dữ liệu Lệnh (Dùng cơ chế Gộp để không mất lệnh cũ)
         tg.CloudStorage.getItem('my_crypto_cache', (err, storedData) => {
             let finalData = "";
-
             if (dataParam) {
-                const newDataDecoded = decodeBase64(dataParam);
+                const newData = decodeBase64(dataParam);
                 if (storedData) {
-                    const oldDataDecoded = decodeBase64(storedData);
-                    // Gộp 2 nguồn, ưu tiên dataParam mới nhất
-                    finalData = mergeOrders(oldDataDecoded, newDataDecoded);
+                    finalData = mergeOrders(decodeBase64(storedData), newData);
                 } else {
-                    finalData = newDataDecoded;
+                    finalData = newData;
                 }
-                // Lưu lại bản đã gộp vào kho mây
                 tg.CloudStorage.setItem('my_crypto_cache', btoa(finalData));
             } else if (storedData) {
                 finalData = decodeBase64(storedData);
             }
-
-            if (finalData) {
-                processOrders(finalData);
-            }
+            if (finalData) processOrders(finalData);
         });
     }
 
-    // Hàm giải mã an toàn
     function decodeBase64(str) {
-        try {
-            return atob(str.replace(/-/g, '+').replace(/_/g, '/'));
-        } catch (e) { return ""; }
+        try { return atob(str.replace(/-/g, '+').replace(/_/g, '/')); } catch (e) { return ""; }
     }
 
-    // Hàm gộp dữ liệu: Nếu trùng ID thì lấy cái mới nhất
     function mergeOrders(oldStr, newStr) {
         const map = new Map();
-        const parseToMap = (s) => {
-            s.split(';').filter(x => x).forEach(row => {
-                const id = row.split('|')[0];
-                map.set(id, row);
-            });
-        };
-        parseToMap(oldStr);
-        parseToMap(newStr);
+        const parse = (s) => s.split(';').filter(x => x).forEach(r => { const id = r.split('|')[0]; map.set(id, r); });
+        parse(oldStr); parse(newStr);
         return Array.from(map.values()).join(';');
     }
 
-    // --- 2. XỬ LÝ DỮ LIỆU ---
     function processOrders(rawStr) {
         try {
-            const rows = rawStr.split(';');
-            allOrders = rows.map(row => {
+            allOrders = rawStr.split(';').filter(x => x).map(row => {
                 const p = row.split('|');
                 return { 
-                    id: p[0], 
-                    n: p[1], 
-                    p: parseFloat(p[2]), 
-                    q: parseFloat(p[3]), 
-                    // Nhận diện M/B từ Java hoặc Mua/Bán cũ
+                    id: p[0], n: p[1], p: parseFloat(p[2]), q: parseFloat(p[3]), 
                     t: (p[4] === 'M' || p[4] === 'Mua') ? 'Mua' : 'Bán', 
-                    isSold: p[5] === "0", 
-                    isCalc: p[5] === "1", 
-                    lPct: 0 
+                    isSold: p[5] === "0", isCalc: p[5] === "1", lPct: 0 
                 };
             });
-            
-            // Sắp xếp ID mới nhất lên đầu
             allOrders.sort((a, b) => b.id - a.id);
-
             if (allOrders.length > 0) onCoinChange();
-        } catch (e) { console.error("Lỗi xử lý orders:", e); }
+        } catch (e) { console.error(e); }
     }
 
     function renderCoinSelect(encodedList) {
         try {
-            const decodedList = decodeBase64(encodedList);
-            const coins = decodedList.split(',');
-            const select = document.getElementById('coinName');
-            select.innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
-        } catch (e) { console.error("Lỗi nạp coin list:", e); }
+            const coins = decodeBase64(encodedList).split(',');
+            document.getElementById('coinName').innerHTML = coins.map(c => `<option value="${c}">${c}</option>`).join('');
+        } catch (e) {}
     }
 
     function onCoinChange() {
-        const select = document.getElementById('coinName');
-        if (!select.value) return;
-        
-        const coin = select.value;
-        // Lọc lệnh theo Coin, hiện cả SOLD để ông giáo theo dõi
+        const coin = document.getElementById('coinName').value;
+        if (!coin) return;
         displayData = allOrders.filter(x => x.n === coin);
         updateLivePrice(coin); 
     }
 
-    // --- 3. BINANCE API & RENDER ---
     function updateLivePrice(symbol) {
-        const statusBox = document.getElementById('livePrice');
-        statusBox.innerText = "Đang lấy giá...";
-        
+        const box = document.getElementById('livePrice');
+        box.innerText = "Loading...";
         if (symbol === "NIGHT") {
             currentLivePrice = 0.03731;
             processAfterPriceUpdate(symbol, currentLivePrice);
         } else {
-            fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol}USDT`)
-                .then(res => res.json())
-                .then(data => {
-                    if(data.price) {
-                        currentLivePrice = parseFloat(data.price);
-                        processAfterPriceUpdate(symbol, currentLivePrice);
-                    }
-                }).catch(() => {
-                    statusBox.innerText = "Lỗi API";
-                    render();
-                });
-        }
-    }
-
-    function processAfterPriceUpdate(symbol, price) {
-        const statusBox = document.getElementById('livePrice');
-        const displayPrice = price < 1 ? price.toFixed(6) : price.toFixed(4);
-        statusBox.innerText = `${symbol}: ${displayPrice}$`;
-        
-        // Chỉ cập nhật giá vào ô nhập nếu ô đó đang trống hoặc trùng giá cũ
-        document.getElementById('price').value = price;
-
-        displayData.forEach(o => {
-            if (o.p > 0 && !o.isSold) {
-                o.lPct = o.t === 'Mua' ? ((price - o.p) / o.p * 100).toFixed(2) : ((o.p - price) / o.p * 100).toFixed(2);
-            }
-        });
-        render();
-        calcUsdt();
-    }
-
-    function render() {
-        if (currentView === 'card') renderCards(); else renderTable();
-        updateSum();
-    }
-
-    function getProfitUsd(o) {
-        if (!currentLivePrice || o.isSold) return "0.00";
-        const diff = o.t === 'Mua' ? (currentLivePrice - o.p) : (o.p - currentLivePrice);
-        return (diff * o.q).toFixed(2);
-    }
-
-    function renderTable() {
-        const tbody = document.getElementById('tableBody');
-        tbody.innerHTML = displayData.map((o, i) => {
-            const profitUsd = getProfitUsd(o);
-            const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
-            const rowStyle = o.isSold ? 'style="opacity: 0.4; background: #f2f2f2;"' : '';
-            return `<tr ${rowStyle}>
-                <td style="font-size:10px"><b>${o.n}</b> ${o.isSold ? '<span style="color:red">[SOLD]</span>' : ''}<br>ID:${o.id}</td>
-                <td style="font-size:10px">${o.p}<br><span style="color:#888">SL:${o.q}</span></td>
-                <td style="color:${o.isSold ? '#999' : color}; font-size:10px"><b>${o.isSold ? '---' : o.lPct + '%'}</b><br><span>${profitUsd} u</span></td>
-                <td><div style="display:flex; flex-direction:column; gap:4px; align-items:center;">
-                    <input type="checkbox" ${o.isCalc?'checked':''} onchange="toggleCalc(${i})">
-                    ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="border:none; background:none; font-size:14px; padding:0;">✅</button>` : '🏁'}
-                </div></td></tr>`;
-        }).join('');
-    }
-
-    function renderCards() {
-        const container = document.getElementById('cardContainer');
-        container.innerHTML = displayData.map((o, i) => {
-            const profitUsd = getProfitUsd(o);
-            const color = parseFloat(o.lPct) >= 0 ? '#34c759' : '#eb4d4b';
-            return `<div class="card ${o.isSold ? 'is-sold' : ''}">
-                <div class="card-row-1">
-                    <div class="card-name">${o.n} <small style="color:${o.t==='Mua'?'green':'red'}">${o.t}</small> <small style="color:#888; font-weight:normal;">#${o.id}</small> ${o.isSold ? '<b style="color:red"> [SOLD]</b>' : ''}</div>
-                    <div style="display:flex; gap:10px; align-items:center;">
-                        ${!o.isSold ? `<button onclick="closeOrder(${o.id})" style="padding:4px 8px; font-size:10px; background:#34c759; color:white; border:none; border-radius:4px; font-weight:bold;">CHỐT</button>` : ''}
-                        <input type="checkbox" ${o.isCalc?'checked':''} onchange="toggleCalc(${i})">
-                    </div>
-                </div>
-                <div class="card-grid">
-                    <div class="grid-item"><span>GIÁ:</span><br>${o.p}</div>
-                    <div class="grid-item"><span>SL:</span><br>${o.q}</div>
-                    <div class="grid-item" style="text-align:right"><span>LÃI:</span><br><b style="color:${o.isSold ? '#999' : color}">${o.isSold ? 'KẾT THÚC' : o.lPct + '% (' + profitUsd + 'u)'}</b></div>
-                </div></div>`;
-        }).join('');
-    }
-
-    function toggleCalc(index) {
-        displayData[index].isCalc = !displayData[index].isCalc;
-        updateSum();
-    }
-
-    // --- 4. TƯƠNG TÁC BOT ---
-    function closeOrder(orderId) {
-        tg.showConfirm("Ông giáo muốn chốt lệnh ID " + orderId + " này chứ?", (confirmed) => {
-            if (confirmed) {
-                const payload = { action: "CLOSE_ORDER", id: parseInt(orderId), time: new Date().toLocaleString('vi-VN') };
-                tg.sendData(JSON.stringify(payload));
-                tg.close();
-            }
-        });
-    }
-
-    function saveData() {
-        const price = document.getElementById('price').value;
-        const qty = document.getElementById('qty').value;
-        if(!price || !qty) { alert("Nhập giá và SL đã ông giáo!"); return; }
-
-        const payload = {
-            action: "SAVE_ORDER",
-            coin: document.getElementById('coinName').value,
-            type: document.querySelector('.type-selector .active').innerText,
-            price: parseFloat(price),
-            qty: parseFloat(qty),
-            time: new Date().toLocaleString('vi-VN')
-        };
-        tg.sendData(JSON.stringify(payload));
-        tg.close();
-    }
-
-    // --- 5. UI/UX HELPERS ---
-    function setView(v) {
-        currentView = v;
-        document.getElementById('btnCard').className = v === 'card' ? 'active' : '';
-        document.getElementById('btnTable').className = v === 'table' ? 'active' : '';
-        document.getElementById('cardContainer').style.display = (v === 'card' ? 'block' : 'none');
-        document.getElementById('tableContainer').style.display = (v === 'table' ? 'block' : 'none');
-        render();
-    }
-
-    function setType(t) {
-        document.getElementById('buyType').className = t === 'Mua' ? 'btn-buy active' : 'btn-buy';
-        document.getElementById('sellType').className = t === 'Bán' ? 'btn-sell active' : 'btn-sell';
-    }
-
-    function calcUsdt() {
-        let p = document.getElementById('price').value;
-        let q = document.getElementById('qty').value;
-        if(p && q) document.getElementById('usdt').value = (p * q).toFixed(2);
-    }
-
-    function calcQty() {
-        let p = document.getElementById('price').value;
-        let u = document.getElementById('usdt').value;
-        if(p && u) document.getElementById('qty').value = (u / p).toFixed(4);
-    }
-
-    function updateSum() {
-        let u = 0, q = 0;
-        // Chỉ tính tổng các lệnh ĐANG CHẠY và ĐƯỢC CHỌN
-        displayData.filter(x => x.isCalc && !x.isSold).forEach(x => { 
-            u += parseFloat(x.p * x.q); 
-            q += parseFloat(x.q); 
-        });
-        document.getElementById('totalU').innerText = `Tổng chọn: ${u.toFixed(2)} u`;
-        document.getElementById('totalQ').innerText = `SL: ${q.toFixed(4)}`;
-    }
-
-    function addCoin() {
-        let c = prompt("Tên Coin mới (VD: SOL):");
-        if(c) {
-            let s = document.getElementById('coinName');
-            let o = document.createElement('option');
-            o.value = c.toUpperCase(); o.text = c.toUpperCase();
-            s.add(o); s.value = o.value; onCoinChange();
-        }
-    }
-
-    initData();
-</script>
-</body>
-</html>
+            fetch(`https://api
